@@ -61,7 +61,11 @@ public class DilStringLocalizer : IStringLocalizer
 
             // Detect existence on the raw template (Format never returns the key), then format positionally.
             var template = Loc.Get(Set, name);
-            var notFound = ResourceNotFound(name, template);
+            if (ResourceNotFound(name, template))
+            {
+                // Match ResourceManagerStringLocalizer: a not-found result's value is the name itself.
+                return new LocalizedString(name, name, true, Set);
+            }
 
             string value;
             try
@@ -75,7 +79,7 @@ public class DilStringLocalizer : IStringLocalizer
                 value = template;
             }
 
-            return new LocalizedString(name, value, notFound, Set);
+            return new LocalizedString(name, value, false, Set);
         }
     }
 

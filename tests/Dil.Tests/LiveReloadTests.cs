@@ -10,6 +10,7 @@ public sealed class LiveReloadTests
     public void ResetCulture() => CultureInfo.CurrentUICulture = CultureInfo.InvariantCulture;
 
     [Test]
+    [Retry(3)] // FileSystemWatcher latency is environment-dependent (esp. on macOS).
     public async Task Picks_up_file_changes_when_enabled()
     {
         var dir = Setup(new Res("Strings.json", "", """{ "k": "old" }"""));

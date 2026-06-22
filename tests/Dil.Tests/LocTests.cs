@@ -265,4 +265,12 @@ public sealed class LocTests
             await Assert.That(Loc.Get(Set, "k")).IsEqualTo("k");
         }
     }
+
+    [Test]
+    public async Task MalformedJsonFileIsSkippedNotThrown()
+    {
+        // Truncated mid-property (e.g. a file caught mid-save): JsonException must be swallowed, not thrown.
+        Setup(new Res("Strings.json", "", """{ "a": "A", "b": """));
+        await Assert.That(Loc.Get(Set, "a")).IsEqualTo("a"); // skipped file -> key fallback, no crash
+    }
 }

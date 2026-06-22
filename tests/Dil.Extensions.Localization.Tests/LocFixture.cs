@@ -25,3 +25,19 @@ static class LocFixture
 
 /// <summary>Marker type whose simple name ("Strings") is the resource-set key used in the typed tests.</summary>
 public sealed class Strings;
+
+/// <summary>Probe flag flipped by <see cref="RegisteringMarker"/>'s static constructor.</summary>
+public static class StaticCtorProbe
+{
+    public static bool Ran { get; set; }
+}
+
+/// <summary>
+/// Stands in for a Dil-generated resource class: its static constructor has a side effect, so a test
+/// can prove that constructing <c>DilStringLocalizer&lt;RegisteringMarker&gt;</c> runs it (the mechanism
+/// that lets DI usage self-register without touching the typed members).
+/// </summary>
+public sealed class RegisteringMarker
+{
+    static RegisteringMarker() => StaticCtorProbe.Ran = true;
+}

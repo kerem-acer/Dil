@@ -67,6 +67,15 @@ public sealed class DilLocalizerTests
     }
 
     [Test]
+    public async Task Typed_localizer_runs_resource_class_static_constructor()
+    {
+        // RegisteringMarker is referenced nowhere else, so its static ctor has not run yet.
+        await Assert.That(StaticCtorProbe.Ran).IsFalse();
+        _ = new DilStringLocalizer<RegisteringMarker>();
+        await Assert.That(StaticCtorProbe.Ran).IsTrue(); // construction forced the static initializer
+    }
+
+    [Test]
     public async Task Factory_creates_localizer_from_type_and_base_name()
     {
         LocFixture.Setup("Strings", ("Strings.json", "", """{ "hello": "Hello" }"""));

@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <!-- TUnit runs on Microsoft.Testing.Platform; the repo-root dotnet.config opts `dotnet test`
+    <!-- TUnit runs on Microsoft.Testing.Platform; the repo-root global.json opts `dotnet test`
          into the MTP runner (the VSTest bridge is gone on the .NET 10 SDK). -->
   </PropertyGroup>
 

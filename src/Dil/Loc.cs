@@ -13,9 +13,7 @@ namespace Dil;
 /// (named after its JSON file's base name) that registers its files via <see cref="Register"/> and
 /// resolves keys against the ambient <see cref="CultureInfo.CurrentUICulture"/> — exactly like resx,
 /// with parent-culture and default fallback. Sets are independent, so two sets may share key names.
-/// Values are stored as UTF-8 <see cref="Text"/> (parsed straight from the JSON bytes, no UTF-16
-/// transcode at parse time). When <see cref="LiveReload"/> is on (the default) edits to the JSON
-/// files are picked up at runtime.
+/// When <see cref="LiveReload"/> is on (the default) edits to the JSON files are picked up at runtime.
 /// </summary>
 public static class Loc
 {
@@ -92,8 +90,8 @@ public static class Loc
     /// <summary>Resolve a key for the current UI culture, falling back to parent cultures then the default (neutral) file.</summary>
     public static string Get(string set, string key)
     {
-        Dictionary<string, Dictionary<string, Text>> tables;
-        Dictionary<string, Text> def;
+        Dictionary<string, Dictionary<string, string>> tables;
+        Dictionary<string, string> def;
         lock (Gate)
         {
             var rs = GetOrCreate(set);
@@ -113,11 +111,11 @@ public static class Loc
             if (tables.TryGetValue(c.Name, out var table) &&
                 table.TryGetValue(key, out var value))
             {
-                return value.ToString();
+                return value;
             }
         }
 
-        return def.TryGetValue(key, out var d) ? d.ToString() : key;
+        return def.TryGetValue(key, out var d) ? d : key;
     }
 
     /// <summary>
@@ -127,16 +125,15 @@ public static class Loc
     /// <see cref="CultureInfo.CurrentUICulture"/> chain, with the most-specific culture winning — the same
     /// values <see cref="Get"/> would return. When <see langword="false"/> only the current UI culture's
     /// own table entries are returned, with no neutral or parent-culture merge (an empty sequence if that
-    /// culture has no table). Uses the same snapshot pattern as <see cref="Get"/>: the lock is held only to
-    /// grab the table snapshot; the returned dictionary is built and enumerated off the lock.
+    /// culture has no table). Uses the same snapshot pattern as <see cref="Get"/>.
     /// </summary>
     /// <param name="set">The resource-set key.</param>
     /// <param name="includeParentCultures">Whether to merge neutral and parent-culture entries.</param>
     /// <returns>The resolved key/value pairs for the current UI culture.</returns>
     public static IEnumerable<KeyValuePair<string, string>> GetAllStrings(string set, bool includeParentCultures = true)
     {
-        Dictionary<string, Dictionary<string, Text>> tables;
-        Dictionary<string, Text> def;
+        Dictionary<string, Dictionary<string, string>> tables;
+        Dictionary<string, string> def;
         lock (Gate)
         {
             var rs = GetOrCreate(set);
@@ -151,25 +148,13 @@ public static class Loc
 
         if (!includeParentCultures)
         {
-            var own = new Dictionary<string, string>(StringComparer.Ordinal);
-            if (tables.TryGetValue(CultureInfo.CurrentUICulture.Name, out var table))
-            {
-                foreach (var pair in table)
-                {
-                    own[pair.Key] = pair.Value.ToString();
-                }
-            }
-
-            return own;
+            return tables.TryGetValue(CultureInfo.CurrentUICulture.Name, out var own)
+                ? new Dictionary<string, string>(own, StringComparer.Ordinal)
+                : [];
         }
 
         // Seed with the neutral default, then overlay each culture in the chain, most-specific last.
-        var merged = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var pair in def)
-        {
-            merged[pair.Key] = pair.Value.ToString();
-        }
-
+        var merged = new Dictionary<string, string>(def, StringComparer.Ordinal);
         var chain = new List<string>();
         for (var c = CultureInfo.CurrentUICulture;
              c != null && !string.IsNullOrEmpty(c.Name);
@@ -184,7 +169,7 @@ public static class Loc
             {
                 foreach (var pair in table)
                 {
-                    merged[pair.Key] = pair.Value.ToString();
+                    merged[pair.Key] = pair.Value;
                 }
             }
         }
@@ -282,8 +267,8 @@ public static class Loc
     static void Load(ResourceSet rs)
     {
         var baseDir = _baseDirectory ?? AppContext.BaseDirectory;
-        var tables = new Dictionary<string, Dictionary<string, Text>>(StringComparer.OrdinalIgnoreCase);
-        var def = new Dictionary<string, Text>(StringComparer.Ordinal);
+        var tables = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        var def = new Dictionary<string, string>(StringComparer.Ordinal);
         var dirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var (culture, relPath) in rs.Manifest)
@@ -300,7 +285,7 @@ public static class Loc
                 continue;
             }
 
-            Dictionary<string, Text> target;
+            Dictionary<string, string> target;
             if (string.IsNullOrEmpty(culture))
             {
                 target = def;
@@ -311,7 +296,7 @@ public static class Loc
             }
             else
             {
-                tables[culture] = target = new Dictionary<string, Text>(StringComparer.Ordinal);
+                tables[culture] = target = new Dictionary<string, string>(StringComparer.Ordinal);
             }
 
             TryLoadFile(full, target);
@@ -319,17 +304,25 @@ public static class Loc
 
         rs.Tables = tables;
         rs.Default = def;
-
-        if (_liveReload && rs.Watchers is null)
-        {
-            SetupWatchers(rs, dirs);
-        }
-
+        ReconcileWatchers(rs, dirs);
         rs.Loaded = true;
     }
 
-    static void SetupWatchers(ResourceSet rs, HashSet<string> dirs)
+    // Watch every directory backing the set; recreate only when the directory set actually changes
+    // (avoids churning OS handles on each reload) and disabled entirely when live reload is off.
+    static void ReconcileWatchers(ResourceSet rs, HashSet<string> dirs)
     {
+        if (!_liveReload)
+        {
+            return;
+        }
+
+        if (rs.Watchers != null && rs.WatchedDirs != null && rs.WatchedDirs.SetEquals(dirs))
+        {
+            return;
+        }
+
+        DisposeWatchers(rs);
         var watchers = new List<FileSystemWatcher>();
         foreach (var dir in dirs)
         {
@@ -342,18 +335,21 @@ public static class Loc
             {
                 NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size,
             };
-            watcher.Changed += OnResourceFileChanged(rs);
-            watcher.Created += OnResourceFileChanged(rs);
-            watcher.Deleted += OnResourceFileChanged(rs);
+            watcher.Changed += OnChanged;
+            watcher.Created += OnChanged;
+            watcher.Deleted += OnChanged;
             watcher.Renamed += (_, _) => Invalidate(rs);
+            // Buffer overflow / internal errors lose events; force a full reload so we recover.
+            watcher.Error += (_, _) => Invalidate(rs);
             watcher.EnableRaisingEvents = true;
             watchers.Add(watcher);
         }
 
-        rs.Watchers = watchers;
-    }
+        void OnChanged(object? sender, FileSystemEventArgs e) => Invalidate(rs);
 
-    static FileSystemEventHandler OnResourceFileChanged(ResourceSet rs) => (_, _) => Invalidate(rs);
+        rs.Watchers = watchers;
+        rs.WatchedDirs = new HashSet<string>(dirs, StringComparer.OrdinalIgnoreCase);
+    }
 
     static void Invalidate(ResourceSet rs)
     {
@@ -376,15 +372,16 @@ public static class Loc
         }
 
         rs.Watchers = null;
+        rs.WatchedDirs = null;
     }
 
     /// <summary>
-    /// Reads a flat JSON object of string-&gt;string with <see cref="Utf8JsonReader"/>, copying each
-    /// value's unescaped UTF-8 directly into a Glot <see cref="Text"/> (no UTF-16 transcode). Non-string
-    /// values are skipped; comments and trailing commas are tolerated. A file that is briefly locked
-    /// (e.g. mid-save) is skipped — the next change event triggers another reload.
+    /// Reads a flat JSON object of string-&gt;string with <see cref="Utf8JsonReader"/> over a pooled byte
+    /// buffer. Non-string values are skipped; comments and trailing commas are tolerated. A file that is
+    /// locked or being written mid-save (a truncated, momentarily-invalid file) is skipped — its keys fall
+    /// back until the next reload — rather than faulting the caller.
     /// </summary>
-    static void TryLoadFile(string path, Dictionary<string, Text> into)
+    static void TryLoadFile(string path, Dictionary<string, string> into)
     {
         try
         {
@@ -412,20 +409,27 @@ public static class Loc
                     utf8 = utf8.Slice(3);
                 }
 
-                Parse(utf8, into);
+                // Parse into a scratch map and merge only on success, so a malformed (e.g. mid-save) file
+                // contributes nothing rather than the partial keys it read before the error.
+                var parsed = new Dictionary<string, string>(StringComparer.Ordinal);
+                Parse(utf8, parsed);
+                foreach (var pair in parsed)
+                {
+                    into[pair.Key] = pair.Value;
+                }
             }
             finally
             {
                 ArrayPool<byte>.Shared.Return(buffer);
             }
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or JsonException)
         {
-            // File is locked or vanished mid-read; leave its keys to fall back until the next reload.
+            // Locked, vanished, or mid-save/invalid JSON: skip this file until the next reload.
         }
     }
 
-    static void Parse(ReadOnlySpan<byte> utf8, Dictionary<string, Text> into)
+    static void Parse(ReadOnlySpan<byte> utf8, Dictionary<string, string> into)
     {
         var reader = new Utf8JsonReader(utf8, new JsonReaderOptions
         {
@@ -448,7 +452,7 @@ public static class Loc
 
             if (reader.TokenType == JsonTokenType.String)
             {
-                into[key] = ReadUtf8Value(ref reader);
+                into[key] = reader.GetString()!;
             }
             else
             {
@@ -457,32 +461,13 @@ public static class Loc
         }
     }
 
-    static Text ReadUtf8Value(ref Utf8JsonReader reader)
-    {
-        var max = reader.HasValueSequence ? checked((int)reader.ValueSequence.Length) : reader.ValueSpan.Length;
-        if (max == 0)
-        {
-            return Text.From(string.Empty);
-        }
-
-        var buffer = ArrayPool<byte>.Shared.Rent(max);
-        try
-        {
-            var written = reader.CopyString(buffer);
-            return Text.FromUtf8(new ReadOnlySpan<byte>(buffer, 0, written));
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
-        }
-    }
-
     sealed class ResourceSet
     {
         public (string Culture, string Path)[] Manifest = [];
-        public Dictionary<string, Dictionary<string, Text>> Tables = new(StringComparer.OrdinalIgnoreCase);
-        public Dictionary<string, Text> Default = new(StringComparer.Ordinal);
+        public Dictionary<string, Dictionary<string, string>> Tables = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, string> Default = new(StringComparer.Ordinal);
         public bool Loaded;
         public List<FileSystemWatcher>? Watchers;
+        public HashSet<string>? WatchedDirs;
     }
 }

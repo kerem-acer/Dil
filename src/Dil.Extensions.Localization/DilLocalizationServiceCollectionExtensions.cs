@@ -16,9 +16,10 @@ public sealed class DilLocalizationOptions
 
     /// <summary>
     /// Whether Dil re-reads resource files when they change on disk. Maps to <see cref="Loc.LiveReload"/>.
-    /// Defaults to <see langword="true"/>; set <see langword="false"/> in production.
+    /// Leave <see langword="null"/> (the default) to keep the current setting; set <see langword="false"/>
+    /// in production.
     /// </summary>
-    public bool LiveReload { get; set; } = true;
+    public bool? LiveReload { get; set; }
 }
 
 /// <summary>Dependency-injection registration helpers for the Dil localization adapter.</summary>
@@ -75,7 +76,10 @@ public static class DilLocalizationServiceCollectionExtensions
             Loc.Configure(options.BaseDirectory);
         }
 
-        Loc.LiveReload = options.LiveReload;
+        if (options.LiveReload is bool liveReload)
+        {
+            Loc.LiveReload = liveReload;
+        }
 
         return services.AddDilLocalization();
     }

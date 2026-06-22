@@ -138,6 +138,37 @@ public sealed class GeneratorSnapshotTests
     }
 
     [Test]
+    public Task KeyCollidingWithClassNameIsDisambiguated()
+    {
+        // Key "strings" would PascalCase to "Strings" — the same as the class — which is CS0542.
+        var driver = GeneratorHarness.RunDriver("MyApp",
+            new ResourceInput("Strings.json", """{ "strings": "all", "hello": "Hello" }"""));
+
+        return Verify(driver);
+    }
+
+    [Test]
+    public Task NonCultureTrailingSegmentStaysInSetName()
+    {
+        // "New" is not a real culture, so Order.New.json must be the neutral file of set "Order.New",
+        // not culture "New" of set "Order".
+        var driver = GeneratorHarness.RunDriver("MyApp",
+            new ResourceInput("Order.New.json", """{ "ok": "OK" }"""));
+
+        return Verify(driver);
+    }
+
+    [Test]
+    public Task InvalidPlaceholderTypeFallsBackToGeneric()
+    {
+        // A malformed type hint must not be injected verbatim into the signature.
+        var driver = GeneratorHarness.RunDriver("MyApp",
+            new ResourceInput("Strings.json", """{ "m": "hi {x:int; evil()}" }"""));
+
+        return Verify(driver);
+    }
+
+    [Test]
     public Task MultipleSetsGenerateSeparateClasses()
     {
         var driver = GeneratorHarness.RunDriver("MyApp",

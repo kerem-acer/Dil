@@ -41,6 +41,7 @@ public class DilStringLocalizerFactory : IStringLocalizerFactory
 
         var dot = baseName.LastIndexOf('.');
         var set = dot >= 0 ? baseName.Substring(dot + 1) : baseName;
-        return new DilStringLocalizer(set);
+        // A trailing dot ("My.App.") would yield an empty (dead) set — fall back to the full base name.
+        return new DilStringLocalizer(set.Length == 0 ? baseName : set);
     }
 }
