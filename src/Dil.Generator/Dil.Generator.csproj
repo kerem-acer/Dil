@@ -7,6 +7,8 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <!-- Shipped bundled inside the Dil package's analyzers/ folder, not as its own package. -->
+    <IsPackable>false</IsPackable>
     <!-- RS2008: analyzer release tracking — not needed for a self-contained generator -->
     <NoWarn>$(NoWarn);RS2008</NoWarn>
   </PropertyGroup>

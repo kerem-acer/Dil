@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "Microsoft.Extensions.DependencyInjection": {
+        "type": "Direct",
+        "requested": "[9.0.0, )",
+        "resolved": "9.0.0",
+        "contentHash": "MCPrg7v3QgNMr0vX4vzRXvkNGgLg8vKWX0nKCWUxu2uPyMsaRgiRc1tHBnbTcfJMhMKj2slE/j2M9oGkd25DNw==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "9.0.0"
+        }
+      },
+      "Glot": {
+        "type": "Transitive",
+        "resolved": "0.2.0",
+        "contentHash": "NjBDprw6BWTnfWVMitGS5lG4qaFH0ftfXVMBnfJXC+vLeiEyLgbjlZnKYrWIjSzD2+c/+sBYB/SM5AdPEnKSRw==",
+        "dependencies": {
+          "Microsoft.Extensions.ObjectPool": "10.0.7",
+          "System.IO.Hashing": "10.0.7"
+        }
+      },
+      "Microsoft.Extensions.DependencyInjection.Abstractions": {
+        "type": "Transitive",
+        "resolved": "9.0.0",
+        "contentHash": "+6f2qv2a3dLwd5w6JanPIPs47CxRbnk+ZocMJUhv9NxP88VlOcJYZs9jY+MYSjxvady08bUZn6qgiNh7DadGgg=="
+      },
+      "Microsoft.Extensions.Localization.Abstractions": {
+        "type": "Transitive",
+        "resolved": "9.0.0",
+        "contentHash": "wc7PaRhPOnio5Csj80b3UgBWA5l6bp28EhGem7gtfpVopcwbkfPb2Sk8Cu6eBnIW3ZNf1YUgYJzwtjzZEM8+iw=="
+      },
+      "Microsoft.Extensions.ObjectPool": {
+        "type": "Transitive",
+        "resolved": "10.0.7",
+        "contentHash": "flWxDEhfc7fueGP+mvNp8Avrm5YcZVfcpyI96MkJEnGu+1X/eH8XcHfx6deBAdCU3ZPpmQ7AVp/9t4aikKP07w=="
+      },
+      "System.IO.Hashing": {
+        "type": "Transitive",
+        "resolved": "10.0.7",
+        "contentHash": "6hsjdSr4VOXSOnhALkYplHpAxnTG1J33YN42IB6nH2fEg4QnJqrZ4Ft+qn7mkrKAOYC8pCSFYwVWw6rQbmwgLQ=="
+      },
+      "dil": {
+        "type": "Project",
+        "dependencies": {
+          "Glot": "[0.2.0, )"
+        }
+      },
+      "dil.extensions.localization": {
+        "type": "Project",
+        "dependencies": {
+          "Dil": "[0.1.0, )",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[9.0.0, )",
+          "Microsoft.Extensions.Localization.Abstractions": "[9.0.0, )"
+        }
+      }
+    }
+  }
+}

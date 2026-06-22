@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>Dil.Sample</RootNamespace>
+    <IsPackable>false</IsPackable>
     <!-- Write generated files to obj/generated so you can inspect them -->
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <!-- The deliberately-partial German file raises DIL001; keep it a warning, don't fail the demo. -->

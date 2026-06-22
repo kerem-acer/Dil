@@ -6,9 +6,25 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- Required for IDE0005 (unused usings) to run at build time. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- NU1900: unreachable Telerik feed in the machine's NuGet config.
-         IDE0330: suggests System.Threading.Lock, which doesn't exist on netstandard2.0/net8.0. -->
-    <NoWarn>$(NoWarn);NU1900;IDE0330</NoWarn>
+    <!-- IDE0330: suggests System.Threading.Lock, which doesn't exist on netstandard2.0/net8.0. -->
+    <NoWarn>$(NoWarn);IDE0330</NoWarn>
+
+    <!-- Reproducible, lock-file-pinned restore (the CI cache keys off packages.lock.json). -->
+    <Deterministic>true</Deterministic>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+
+    <!-- Package authorship + Source Link / symbols for debuggable, reproducible packages. -->
+    <Authors>kerem-acer</Authors>
+    <Copyright>Copyright (c) 2026 kerem-acer</Copyright>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <!-- Embed the exact commit in package builds on CI (deterministic + Source Link). -->
+  <PropertyGroup Condition="'$(CI)' == 'true' Or '$(GITHUB_ACTIONS)' == 'true' Or '$(TF_BUILD)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
   <!-- Test projects: relax rules that fight idiomatic test code (underscored names, etc.),
@@ -16,6 +32,11 @@
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
     <NoWarn>$(NoWarn);CA1707;CA2012;MA0042;S6966;S2068;S5445;EPC29;IDE0370</NoWarn>
   </PropertyGroup>
+
+  <!-- Source Link only for shipping packages. -->
+  <ItemGroup Condition="'$(IsPackable)' != 'false'">
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
 
   <!-- The repo-root .globalconfig (Glot's shared analyzer severities) is auto-discovered by the SDK. -->
 

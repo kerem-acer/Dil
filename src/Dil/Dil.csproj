@@ -11,7 +11,7 @@
     <PackageId>Dil</PackageId>
     <Version>0.1.0</Version>
     <Authors>kerem-acer</Authors>
-    <Description>Strongly-typed .NET localization from plain JSON files, generated at build time. No resx, no designer files, no IStringLocalizer.</Description>
+    <Description>Strongly-typed .NET localization from plain JSON files, generated at build time — typed accessors instead of resx, designer files, or stringly-typed lookups.</Description>
     <PackageTags>localization;i18n;l10n;source-generator;resx;json;globalization</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/kerem-acer/Dil</PackageProjectUrl>
@@ -48,12 +48,13 @@
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
-  <!-- Build the generator and pack its assembly as the analyzer. Invoking it via the MSBuild
-       task (rather than relying on @(DilAnalyzer)) keeps this working for the multi-targeted
-       outer build, where per-TFM ProjectReference items are not available. -->
+  <!-- Pack the generator assembly as the analyzer. Resolve its path via GetTargetPath (not Build) so
+       it works under a no-build pack in CI; the build step already produced the DLL. Querying the
+       project directly (rather than @(DilAnalyzer)) keeps it working for the multi-targeted outer
+       build, where per-TFM ProjectReference items are not available. -->
   <Target Name="_DilAddAnalyzerToPackage" BeforeTargets="GenerateNuspec">
     <MSBuild Projects="..\Dil.Generator\Dil.Generator.csproj"
-             Targets="Build"
+             Targets="GetTargetPath"
              Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_DilGeneratorOutput" />
     </MSBuild>
