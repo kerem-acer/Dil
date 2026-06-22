@@ -1,9 +1,15 @@
 <Solution>
   <Folder Name="/sample/">
     <Project Path="sample/Dil.Sample/Dil.Sample.csproj" />
+    <Project Path="sample/Dil.Localization.Sample/Dil.Localization.Sample.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Dil.Generator/Dil.Generator.csproj" />
     <Project Path="src/Dil/Dil.csproj" />
+    <Project Path="src/Dil.Extensions.Localization/Dil.Extensions.Localization.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Dil.Tests/Dil.Tests.csproj" />
+    <Project Path="tests/Dil.Extensions.Localization.Tests/Dil.Extensions.Localization.Tests.csproj" />
   </Folder>
 </Solution>

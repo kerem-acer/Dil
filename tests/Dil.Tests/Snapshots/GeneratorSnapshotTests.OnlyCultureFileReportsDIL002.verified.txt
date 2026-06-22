@@ -1,0 +1,18 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Strings.tr.json: (0,0)-(0,0),
+      Message: Resource set 'Strings' has no neutral (culture-less) file to define its keys (for example 'Strings.json'),
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: DIL002,
+        Title: No neutral resource file,
+        MessageFormat: Resource set '{0}' has no neutral (culture-less) file to define its keys (for example '{0}.json'),
+        Category: Dil,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

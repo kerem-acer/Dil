@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <!-- net8.0/net10.0 get System.Text.Json in-box (zero deps); netstandard2.0 pulls it from NuGet. -->
+    <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
@@ -19,9 +20,18 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
 
     <IncludeBuildOutput>true</IncludeBuildOutput>
-    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
   </PropertyGroup>
+
+  <!-- Glot's pooled TextBuilder backs allocation-light placeholder substitution. -->
+  <ItemGroup>
+    <PackageReference Include="Glot" Version="0.2.0" />
+  </ItemGroup>
+
+  <!-- System.Text.Json is in-box on net8.0/net10.0; only netstandard2.0 needs the package. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="System.Text.Json" Version="10.0.9" />
+  </ItemGroup>
 
   <!-- Build the generator and capture its output as an analyzer to pack (not a runtime reference) -->
   <ItemGroup>
@@ -38,9 +48,18 @@
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
-  <Target Name="_DilAddAnalyzerToPackage" BeforeTargets="GenerateNuspec" DependsOnTargets="ResolveProjectReferences">
+  <!-- Build the generator and pack its assembly as the analyzer. Invoking it via the MSBuild
+       task (rather than relying on @(DilAnalyzer)) keeps this working for the multi-targeted
+       outer build, where per-TFM ProjectReference items are not available. -->
+  <Target Name="_DilAddAnalyzerToPackage" BeforeTargets="GenerateNuspec">
+    <MSBuild Projects="..\Dil.Generator\Dil.Generator.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_DilGeneratorOutput" />
+    </MSBuild>
     <ItemGroup>
-      <_PackageFiles Include="@(DilAnalyzer)"
+      <_PackageFiles Include="@(_DilGeneratorOutput)"
+                     Condition="'%(Extension)' == '.dll'"
                      PackagePath="analyzers/dotnet/cs/%(Filename)%(Extension)"
                      BuildAction="None" />
     </ItemGroup>

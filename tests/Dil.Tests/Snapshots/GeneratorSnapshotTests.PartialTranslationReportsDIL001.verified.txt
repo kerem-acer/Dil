@@ -1,0 +1,18 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Strings.de.json: (0,0)-(0,0),
+      Message: Culture 'de' is missing a translation for key 'inbox' (defined in the neutral resource),
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: DIL001,
+        Title: Missing translation,
+        MessageFormat: Culture '{0}' is missing a translation for key '{1}' (defined in the neutral resource),
+        Category: Dil,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

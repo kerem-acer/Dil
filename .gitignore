@@ -15,3 +15,6 @@ obj/
 # NuGet
 *.nupkg
 artifacts/
+
+# Verify — received snapshots are transient; *.verified.* are committed
+*.received.*

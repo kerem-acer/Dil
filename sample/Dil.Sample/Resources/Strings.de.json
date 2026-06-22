@@ -1,4 +1,5 @@
 {
-  "hello": "Hallo",
-  "sayHelloTo": "Hallo {name}!"
+  "appName": "Dil — JSON-Lokalisierungsdemo",
+  "greeting": "Hallo, {name}!",
+  "farewell": "Auf Wiedersehen, {name}. Bis bald in {city}!"
 }

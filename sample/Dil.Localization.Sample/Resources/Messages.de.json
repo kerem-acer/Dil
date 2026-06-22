@@ -1,0 +1,4 @@
+{
+  "greeting": "Hallo Freunde, willkommen!",
+  "orderSummary": "Am {0:D} haben Sie {1:C} ausgegeben."
+}

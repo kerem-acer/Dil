@@ -1,5 +1,8 @@
 {
-  "hello": "Merhaba",
-  "sayHelloTo": "Merhaba {name}!",
-  "items": "{count} öğeniz var"
+  "appName": "Dil — JSON yerelleştirme demosu",
+  "greeting": "Merhaba, {name}!",
+  "inbox": "{count} okunmamış mesajınız var",
+  "balance": "Bakiye: {amount:Money}",
+  "farewell": "Hoşça kal, {name}. {city} şehrinde görüşürüz!",
+  "onlyInEnglish": "Bu satır burada da çevrildi"
 }

@@ -1,94 +1,61 @@
 using System.Collections.Generic;
-using System.Globalization;
 using System.Text;
+using System.Text.Json;
 
-namespace Dil.Generator
+namespace Dil.Generator;
+
+/// <summary>
+/// Reads a flat JSON object of string-&gt;string with <see cref="Utf8JsonReader"/>.
+/// Order-preserving (the order keys appear drives the order of generated members),
+/// tolerant of comments and trailing commas. Non-string values are ignored.
+/// </summary>
+static class FlatJson
 {
-    /// <summary>
-    /// Tiny dependency-free parser for a flat JSON object of string -&gt; string.
-    /// Keeps the analyzer free of any NuGet dependencies. Order-preserving.
-    /// </summary>
-    internal static class FlatJson
+    public static List<KeyValuePair<string, string>> Parse(string text)
     {
-        public static List<KeyValuePair<string, string>> Parse(string text)
+        var result = new List<KeyValuePair<string, string>>();
+        if (string.IsNullOrEmpty(text))
         {
-            var result = new List<KeyValuePair<string, string>>();
-            int i = 0;
-            SkipWs(text, ref i);
-            if (i >= text.Length || text[i] != '{') return result;
-            i++;
-            while (i < text.Length)
-            {
-                SkipWs(text, ref i);
-                if (i >= text.Length || text[i] == '}') break;
-                if (text[i] == ',') { i++; continue; }
-                if (text[i] != '"') { i++; continue; }
-                var key = ReadString(text, ref i);
-                SkipWs(text, ref i);
-                if (i < text.Length && text[i] == ':') i++;
-                SkipWs(text, ref i);
-                if (i < text.Length && text[i] == '"')
-                    result.Add(new KeyValuePair<string, string>(key, ReadString(text, ref i)));
-                else
-                    SkipValue(text, ref i);
-            }
             return result;
         }
 
-        private static void SkipWs(string s, ref int i)
+        var utf8 = Encoding.UTF8.GetBytes(text);
+        var reader = new Utf8JsonReader(utf8, new JsonReaderOptions
         {
-            while (i < s.Length && char.IsWhiteSpace(s[i])) i++;
-        }
+            CommentHandling = JsonCommentHandling.Skip,
+            AllowTrailingCommas = true,
+        });
 
-        private static string ReadString(string s, ref int i)
+        try
         {
-            var sb = new StringBuilder();
-            i++; // opening quote
-            while (i < s.Length)
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
             {
-                var c = s[i++];
-                if (c == '"') break;
-                if (c == '\\' && i < s.Length)
+                return result;
+            }
+
+            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+            {
+                var key = reader.GetString() ?? string.Empty;
+                if (!reader.Read())
                 {
-                    var e = s[i++];
-                    switch (e)
-                    {
-                        case 'n': sb.Append('\n'); break;
-                        case 't': sb.Append('\t'); break;
-                        case 'r': sb.Append('\r'); break;
-                        case 'b': sb.Append('\b'); break;
-                        case 'f': sb.Append('\f'); break;
-                        case '"': sb.Append('"'); break;
-                        case '\\': sb.Append('\\'); break;
-                        case '/': sb.Append('/'); break;
-                        case 'u':
-                            if (i + 4 <= s.Length &&
-                                int.TryParse(s.Substring(i, 4), NumberStyles.HexNumber,
-                                    CultureInfo.InvariantCulture, out var code))
-                            {
-                                sb.Append((char)code);
-                                i += 4;
-                            }
-                            break;
-                        default: sb.Append(e); break;
-                    }
+                    break;
                 }
-                else sb.Append(c);
+
+                if (reader.TokenType == JsonTokenType.String)
+                {
+                    result.Add(new KeyValuePair<string, string>(key, reader.GetString() ?? string.Empty));
+                }
+                else
+                {
+                    reader.Skip();
+                }
             }
-            return sb.ToString();
+        }
+        catch (JsonException)
+        {
+            // Malformed JSON: surface whatever was read so far rather than crashing the generator.
         }
 
-        private static void SkipValue(string s, ref int i)
-        {
-            int depth = 0;
-            while (i < s.Length)
-            {
-                var c = s[i];
-                if (c == '{' || c == '[') depth++;
-                else if (c == '}' || c == ']') { if (depth == 0) break; depth--; }
-                else if (c == ',' && depth == 0) break;
-                i++;
-            }
-        }
+        return result;
     }
 }

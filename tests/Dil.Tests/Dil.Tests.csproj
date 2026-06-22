@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- TUnit runs on Microsoft.Testing.Platform; the repo-root dotnet.config opts `dotnet test`
+         into the MTP runner (the VSTest bridge is gone on the .NET 10 SDK). -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" Version="1.56.25" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.8.0" />
+    <!-- Needed to drive the source generator directly in unit tests. Aligned with the SDK's
+         Roslyn and the version Verify.SourceGenerators expects (>= 4.9). -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <!-- Snapshot testing for the generated output + diagnostics. -->
+    <PackageReference Include="Verify.TUnit" Version="31.20.0" />
+    <PackageReference Include="Verify.SourceGenerators" Version="2.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Reference both as plain libraries: the runtime under test, and the generator so we can
+         invoke it through CSharpGeneratorDriver. ReferenceOutputAssembly=true (the default) keeps
+         them as references, not as analyzers applied to this project. -->
+    <ProjectReference Include="..\..\src\Dil\Dil.csproj" />
+    <ProjectReference Include="..\..\src\Dil.Generator\Dil.Generator.csproj" />
+  </ItemGroup>
+
+</Project>

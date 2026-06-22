@@ -1,0 +1,4 @@
+{
+  "greeting": "Hi friends, welcome!",
+  "orderSummary": "On {0:D} you spent {1:C}."
+}

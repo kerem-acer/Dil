@@ -8,6 +8,8 @@
     <RootNamespace>Dil.Sample</RootNamespace>
     <!-- Write generated files to obj/generated so you can inspect them -->
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <!-- The deliberately-partial German file raises DIL001; keep it a warning, don't fail the demo. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);DIL001</WarningsNotAsErrors>
   </PropertyGroup>
 
   <!-- In a real project these two lines come from the NuGet package automatically.
@@ -25,6 +27,10 @@
     <AdditionalFiles Include="Resources/Strings.json" DilResource="true" />
     <AdditionalFiles Include="Resources/Strings.tr.json" DilResource="true" />
     <AdditionalFiles Include="Resources/Strings.de.json" DilResource="true" />
+    <AdditionalFiles Include="Resources/Strings.fr.json" DilResource="true" />
+    <!-- A second, independent resource set -> generates a separate `Errors` class. -->
+    <AdditionalFiles Include="Resources/Errors.json" DilResource="true" />
+    <AdditionalFiles Include="Resources/Errors.tr.json" DilResource="true" />
   </ItemGroup>
 
   <Import Project="..\..\src\Dil\build\Dil.targets" />

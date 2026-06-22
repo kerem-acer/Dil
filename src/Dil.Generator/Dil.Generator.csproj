@@ -13,6 +13,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
+    <!-- Compile-time only: System.Text.Json ships in the shared framework of the Roslyn
+         compiler host (csc runs on .NET Core 3.0+), so it resolves at generation time
+         without bundling. PrivateAssets="all" keeps it out of the analyzer package. -->
+    <PackageReference Include="System.Text.Json" Version="10.0.9" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

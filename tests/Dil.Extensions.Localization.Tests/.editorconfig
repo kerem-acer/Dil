@@ -1,0 +1,5 @@
+# Test data is JSON inside C# raw strings. Disable the IDE's "probable JSON string" tagging,
+# which otherwise injects /*lang=json*/ comments that fight `dotnet format`'s whitespace pass.
+[*.cs]
+dotnet_diagnostic.JSON001.severity = none
+dotnet_diagnostic.JSON002.severity = none

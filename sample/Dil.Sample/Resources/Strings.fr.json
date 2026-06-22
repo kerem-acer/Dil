@@ -1,0 +1,8 @@
+{
+  "appName": "Dil — démo de localisation JSON",
+  "greeting": "Bonjour, {name} !",
+  "inbox": "Vous avez {count} messages non lus",
+  "balance": "Solde : {amount:Money}",
+  "farewell": "Au revoir, {name}. À bientôt à {city} !",
+  "onlyInEnglish": "Cette ligne est aussi traduite ici"
+}

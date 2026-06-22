@@ -1,0 +1,4 @@
+# The German resource file is deliberately partial to demonstrate the DIL001 diagnostic and
+# runtime fallback. Keep it a warning here (not the repo-wide error) so the demo still builds.
+[*]
+dotnet_diagnostic.DIL001.severity = warning

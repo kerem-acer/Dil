@@ -1,5 +1,8 @@
 {
-  "hello": "Hello",
-  "sayHelloTo": "Hello {name}!",
-  "items": "You have {count} items"
+  "appName": "Dil — JSON localization demo",
+  "greeting": "Hello, {name}!",
+  "inbox": "You have {count} unread messages",
+  "balance": "Balance: {amount:Money}",
+  "farewell": "Goodbye, {name}. See you in {city}!",
+  "onlyInEnglish": "This line is defined only in the neutral file"
 }

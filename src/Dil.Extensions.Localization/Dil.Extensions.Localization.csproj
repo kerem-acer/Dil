@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+
+    <!-- Package metadata -->
+    <PackageId>Dil.Extensions.Localization</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>kerem-acer</Authors>
+    <Description>Microsoft.Extensions.Localization adapter for Dil: IStringLocalizer, IStringLocalizer&lt;T&gt;, IStringLocalizerFactory and DI (AddDilLocalization) over Dil's typed JSON localization.</Description>
+    <PackageTags>localization;i18n;l10n;aspnetcore;istringlocalizer;dependencyinjection;dil</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/kerem-acer/Dil</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/kerem-acer/Dil</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- CA1510 suggests ArgumentNullException.ThrowIfNull, which doesn't exist on netstandard2.0;
+         keep the explicit null checks uniform across all target frameworks. -->
+    <NoWarn>$(NoWarn);CA1510</NoWarn>
+  </PropertyGroup>
+
+  <!-- Pin to 9.0.0: still ships a netstandard2.0 lib. Do NOT move to 10.x while ns2.0 is a target. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Localization.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Dil\Dil.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
