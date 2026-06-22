@@ -1,0 +1,10 @@
+<Project>
+
+  <!-- Expose what the source generator needs to read from the consuming project. -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="RootNamespace" />
+    <CompilerVisibleProperty Include="ProjectDir" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="DilResource" />
+  </ItemGroup>
+
+</Project>

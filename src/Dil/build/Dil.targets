@@ -1,0 +1,17 @@
+<Project>
+
+  <!--
+    Resource files marked with DilResource="true" are AdditionalFiles (so the generator
+    can read them). AdditionalFiles are not copied to the output folder, but the runtime
+    needs them there, so mirror each one as a copied None item (preserving its relative path).
+  -->
+  <Target Name="_DilCopyResources" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <None Include="@(AdditionalFiles)"
+            Condition="'%(AdditionalFiles.DilResource)' == 'true'"
+            CopyToOutputDirectory="PreserveNewest"
+            Link="%(AdditionalFiles.Identity)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

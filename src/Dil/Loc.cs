@@ -7,33 +7,41 @@ using System.Text;
 namespace Dil
 {
     /// <summary>
-    /// Runtime backing the generated <c>Resources</c> class. Loads <c>L/*.json</c>
-    /// from the output directory and resolves keys against the ambient
-    /// <see cref="CultureInfo.CurrentUICulture"/>, exactly like resx does.
+    /// Runtime backing the generated <c>Resources</c> class. The generator registers
+    /// the set of localization files (via <see cref="Register"/>); this class loads them
+    /// lazily and resolves keys against the ambient <see cref="CultureInfo.CurrentUICulture"/>,
+    /// exactly like resx — with parent-culture and default fallback.
     /// </summary>
     public static class Loc
     {
-        // culture name (e.g. "tr") -> (key -> value)
+        private static (string Culture, string Path)[] _manifest = Array.Empty<(string, string)>();
         private static readonly Dictionary<string, Dictionary<string, string>> _tables =
             new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-
         private static Dictionary<string, string> _default = new Dictionary<string, string>();
         private static readonly object _gate = new object();
-        private static string _directory = "L";
+        private static string? _baseDirectory;
         private static bool _loaded;
 
         /// <summary>
-        /// Optional: point the loader at a different folder (relative to the app
-        /// base directory) or force a reload after editing files on disk.
+        /// Called by generated code to declare which files back the resources.
+        /// Paths are relative to the application base directory.
         /// </summary>
-        public static void Configure(string directory = "L")
+        public static void Register((string Culture, string Path)[] manifest)
         {
             lock (_gate)
             {
-                _directory = directory;
+                _manifest = manifest ?? Array.Empty<(string, string)>();
                 _loaded = false;
-                _tables.Clear();
-                _default = new Dictionary<string, string>();
+            }
+        }
+
+        /// <summary>Override where relative file paths are resolved from, and/or force a reload after editing files.</summary>
+        public static void Configure(string? baseDirectory = null)
+        {
+            lock (_gate)
+            {
+                _baseDirectory = baseDirectory;
+                _loaded = false;
             }
         }
 
@@ -43,24 +51,32 @@ namespace Dil
             lock (_gate)
             {
                 if (_loaded) return;
-                var dir = Path.Combine(AppContext.BaseDirectory, _directory);
-                if (Directory.Exists(dir))
+                _tables.Clear();
+                _default = new Dictionary<string, string>();
+                var baseDir = _baseDirectory ?? AppContext.BaseDirectory;
+
+                foreach (var (culture, relPath) in _manifest)
                 {
-                    foreach (var file in Directory.GetFiles(dir, "*.json"))
+                    var full = Path.Combine(baseDir, relPath.Replace('/', Path.DirectorySeparatorChar));
+                    if (!File.Exists(full)) continue;
+                    var map = FlatJson.Parse(File.ReadAllText(full));
+
+                    if (string.IsNullOrEmpty(culture))
                     {
-                        var name = Path.GetFileNameWithoutExtension(file);
-                        var map = FlatJson.Parse(File.ReadAllText(file));
-                        if (string.Equals(name, "l", StringComparison.OrdinalIgnoreCase))
-                            _default = map;
-                        else
-                            _tables[name] = map;
+                        foreach (var kv in map) _default[kv.Key] = kv.Value;
+                    }
+                    else
+                    {
+                        if (!_tables.TryGetValue(culture, out var table))
+                            _tables[culture] = table = new Dictionary<string, string>(StringComparer.Ordinal);
+                        foreach (var kv in map) table[kv.Key] = kv.Value;
                     }
                 }
                 _loaded = true;
             }
         }
 
-        /// <summary>Resolve a key for the current UI culture, falling back to parent cultures then the default file.</summary>
+        /// <summary>Resolve a key for the current UI culture, falling back to parent cultures then the default (neutral) file.</summary>
         public static string Get(string key)
         {
             EnsureLoaded();

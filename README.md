@@ -21,71 +21,99 @@ and no cross-platform CLI regeneration. Dil keeps the *one good part* of resx �
 - **Source generator** — the typed class is regenerated on every `dotnet build`, on any OS. Nothing checked in.
 - **Zero dependencies** — the runtime is a single `netstandard2.0` assembly.
 - **Ambient culture** — works exactly like resx: set `CultureInfo.CurrentUICulture`, read `Resources.X`.
+- **Compile-time safety** — missing translations are reported as build warnings (`DIL001`).
 
-## How it works
-
-1. `l.json` defines the **keys** and the **default/fallback** language.
-2. Other languages are `xx.json` files (e.g. `tr.json`, `de.json`).
-3. The source generator reads `l.json` (added as `AdditionalFiles`) and emits a
-   `Resources` class — a property per key, or a method per key that contains `{placeholder}` tokens.
-4. At runtime, `Dil.Loc` loads `L/*.json` from the output folder and resolves each key against
-   `CurrentUICulture`, falling back to the parent culture, then to `l.json`.
-
-## Setup
+## Install
 
 ```
 dotnet add package Dil
 ```
 
-Add to your `.csproj`:
+That's it — the package wires the generator and the required MSBuild glue in automatically.
+
+## Use
+
+Mark your localization files with `DilResource="true"`. **The culture comes from the
+filename**, resx-style: `App.json` is the neutral/default language, `App.tr.json` is Turkish,
+`App.de.json` is German, `App.zh-Hans.json` is Simplified Chinese.
 
 ```xml
 <ItemGroup>
-  <CompilerVisibleProperty Include="RootNamespace" />
-  <AdditionalFiles Include="L/l.json" />
-  <None Update="L/*.json" CopyToOutputDirectory="PreserveNewest" />
+  <AdditionalFiles Include="Strings/App.json"    DilResource="true" />
+  <AdditionalFiles Include="Strings/App.tr.json" DilResource="true" />
 </ItemGroup>
 ```
 
-Create your files:
-
 ```jsonc
-// L/l.json  (default + key definitions)
+// Strings/App.json  (neutral — defines the keys and is the fallback)
 { "hello": "Hello", "sayHelloTo": "Hello {name}!" }
 
-// L/tr.json
+// Strings/App.tr.json
 { "hello": "Merhaba", "sayHelloTo": "Merhaba {name}!" }
 ```
 
-Build, then use the generated class:
+Build, then use the generated class (it lands in your project's `RootNamespace`):
 
 ```csharp
-using YourRootNamespace; // Resources lands in your project's RootNamespace
+using YourRootNamespace;
 
 Console.WriteLine(Resources.Hello);
 Console.WriteLine(Resources.SayHelloTo("Kerem"));
 ```
+
+`{placeholder}` tokens in a value become typed method parameters; plain values become properties.
+
+## How file selection works
+
+The generator **only ever sees files you mark `DilResource="true"`** — a source generator
+cannot read arbitrary files, only those passed as `AdditionalFiles`. Your `appsettings.json`,
+`package.json`, and every other JSON file are invisible to it. There is no folder scan and no
+magic filename.
 
 ## Setting the culture
 
 Dil reads the ambient `CultureInfo.CurrentUICulture` — set it however your app already does:
 
 - **Console / desktop:** `CultureInfo.CurrentUICulture = new("tr");`
-- **ASP.NET Core:** add `app.UseRequestLocalization(...)` — it sets `CurrentUICulture` per request, and `Resources.X` just works inside that request.
+- **ASP.NET Core:** `app.UseRequestLocalization(...)` sets it per request; `Resources.X` just works inside the request.
+
+## Diagnostics
+
+| ID       | Severity | Meaning |
+|----------|----------|---------|
+| `DIL001` | Warning  | A culture file is missing a key defined in the neutral file (untranslated string). |
+| `DIL002` | Warning  | Resource files were found but none is neutral (no file to define the keys). |
+
+Treat them as errors if you want a hard guarantee that every string is translated:
+
+```xml
+<PropertyGroup>
+  <WarningsAsErrors>$(WarningsAsErrors);DIL001</WarningsAsErrors>
+</PropertyGroup>
+```
 
 ## Notes
 
-- Placeholders `{name}` become typed parameters; `{0}`-style numeric tokens are ignored.
-- Missing keys fall back: `tr-TR` → `tr` → `l.json` → the key itself.
+- Missing keys fall back: `tr-TR` → `tr` → neutral → the key itself.
 - JSON values must be strings.
-- `Dil.Loc.Configure("L")` lets you point at a different folder or force a reload.
+- `Dil.Loc.Configure(baseDirectory)` overrides where files are loaded from / forces a reload.
+
+## Build from source
+
+```
+dotnet build                                   # build everything
+dotnet run --project sample/Dil.Sample         # run the demo
+dotnet pack src/Dil -c Release -o artifacts     # produce the NuGet package
+```
 
 ## Project layout
 
 ```
-src/Dil/             runtime (netstandard2.0, zero deps)
-src/Dil.Generator/   incremental source generator
+src/Dil/             runtime (netstandard2.0, zero deps) + build/ props & targets
+src/Dil.Generator/   incremental source generator + DIL001/DIL002 diagnostics
 sample/Dil.Sample/   runnable console demo
 ```
 
-Run the demo: `dotnet run --project sample/Dil.Sample`
+## License
+
+MIT

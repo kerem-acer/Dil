@@ -10,23 +10,23 @@
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
 
+  <!-- In a real project these two lines come from the NuGet package automatically.
+       Here we import them directly since the sample references the projects. -->
+  <Import Project="..\..\src\Dil\build\Dil.props" />
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dil\Dil.csproj" />
     <ProjectReference Include="..\..\src\Dil.Generator\Dil.Generator.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
-  <!-- Make RootNamespace visible to the generator so Resources lands in your namespace -->
+  <!-- Mark localization files. Culture comes from the filename. -->
   <ItemGroup>
-    <CompilerVisibleProperty Include="RootNamespace" />
+    <AdditionalFiles Include="Resources/Strings.json" DilResource="true" />
+    <AdditionalFiles Include="Resources/Strings.tr.json" DilResource="true" />
+    <AdditionalFiles Include="Resources/Strings.de.json" DilResource="true" />
   </ItemGroup>
 
-  <!-- l.json defines the keys (and is the default/fallback language) -->
-  <ItemGroup>
-    <AdditionalFiles Include="L/l.json" />
-    <None Update="L/l.json" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="L/tr.json" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="L/de.json" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
+  <Import Project="..\..\src\Dil\build\Dil.targets" />
 
 </Project>

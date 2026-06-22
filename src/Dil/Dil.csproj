@@ -5,8 +5,45 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
+
+    <!-- Package metadata -->
     <PackageId>Dil</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>kerem-acer</Authors>
     <Description>Strongly-typed .NET localization from plain JSON files, generated at build time. No resx, no designer files, no IStringLocalizer.</Description>
+    <PackageTags>localization;i18n;l10n;source-generator;resx;json;globalization</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/kerem-acer/Dil</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/kerem-acer/Dil</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
   </PropertyGroup>
+
+  <!-- Build the generator and capture its output as an analyzer to pack (not a runtime reference) -->
+  <ItemGroup>
+    <ProjectReference Include="..\Dil.Generator\Dil.Generator.csproj"
+                      ReferenceOutputAssembly="false"
+                      OutputItemType="DilAnalyzer"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- MSBuild props/targets and README shipped in the package -->
+  <ItemGroup>
+    <None Include="build\Dil.props" Pack="true" PackagePath="build\Dil.props" />
+    <None Include="build\Dil.targets" Pack="true" PackagePath="build\Dil.targets" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <Target Name="_DilAddAnalyzerToPackage" BeforeTargets="GenerateNuspec" DependsOnTargets="ResolveProjectReferences">
+    <ItemGroup>
+      <_PackageFiles Include="@(DilAnalyzer)"
+                     PackagePath="analyzers/dotnet/cs/%(Filename)%(Extension)"
+                     BuildAction="None" />
+    </ItemGroup>
+  </Target>
 
 </Project>
