@@ -1,11 +1,48 @@
 <Project>
 
   <!--
+    The dedicated <DilResource Include="..." /> item is the way to register a resource. A source
+    generator can only read AdditionalFiles, so project each one into an AdditionalFiles item here
+    (at import time, so they are present when the generator runs). Referencing @(DilResource)
+    carries over its metadata — including the per-resource Accessibility the generator reads — onto
+    the new items; the literal DilResource="true" marks them as ours. The legacy
+    <AdditionalFiles ... DilResource="true" /> form keeps working untouched.
+
+  -->
+  <ItemGroup>
+    <AdditionalFiles Include="@(DilResource)" DilResource="true" />
+  </ItemGroup>
+
+  <!--
+    Registering the neutral file is enough: each registered file's on-disk culture siblings
+    (<dir>/<stem>.*.json — e.g. Strings.tr.json next to Strings.json) are pulled in automatically.
+    This runs in a target because a wildcard only globs inside a target (at static evaluation it
+    stays literal). It hooks in before AssignTargetPaths (so the copy step below sees the siblings)
+    and before the analyzer config / compile (so the generator sees them). A transform can't glob,
+    but a wildcard inside a property string does, so we build the sibling patterns into a property
+    first. Siblings only need DilResource="true"; their Accessibility is ignored because the neutral
+    file decides a set's accessibility.
+  -->
+  <Target Name="_DilDiscoverSiblings"
+          BeforeTargets="AssignTargetPaths;GenerateMSBuildEditorConfigFile;CoreCompile"
+          Condition="'@(DilResource)' != ''">
+    <PropertyGroup>
+      <_DilSiblingPatterns>@(DilResource->'%(RelativeDir)%(Filename).*.json')</_DilSiblingPatterns>
+    </PropertyGroup>
+    <ItemGroup>
+      <_DilSibling Include="$(_DilSiblingPatterns)" />
+      <!-- Drop any sibling already registered (explicitly or on a prior run) to avoid duplicates. -->
+      <_DilSibling Remove="@(AdditionalFiles)" />
+      <AdditionalFiles Include="@(_DilSibling)" DilResource="true" />
+    </ItemGroup>
+  </Target>
+
+  <!--
     Resource files marked with DilResource="true" are AdditionalFiles (so the generator
     can read them). AdditionalFiles are not copied to the output folder, but the runtime
     needs them there, so mirror each one as a copied None item (preserving its relative path).
   -->
-  <Target Name="_DilCopyResources" BeforeTargets="AssignTargetPaths">
+  <Target Name="_DilCopyResources" BeforeTargets="AssignTargetPaths" DependsOnTargets="_DilDiscoverSiblings">
     <ItemGroup>
       <None Include="@(AdditionalFiles)"
             Condition="'%(AdditionalFiles.DilResource)' == 'true'"

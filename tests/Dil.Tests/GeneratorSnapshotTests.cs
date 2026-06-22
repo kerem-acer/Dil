@@ -178,4 +178,34 @@ public sealed class GeneratorSnapshotTests
 
         return Verify(driver);
     }
+
+    [Test]
+    public Task GlobalDilAccessibilityPublicMakesClassPublic()
+    {
+        var driver = GeneratorHarness.RunDriver("MyApp", defaultAccessibility: "public",
+            new ResourceInput("Strings.json", Neutral));
+
+        return Verify(driver);
+    }
+
+    [Test]
+    public Task PerFileAccessibilityOverridesGlobalDefault()
+    {
+        // Global default is public, but this resource opts back to internal per-file.
+        var driver = GeneratorHarness.RunDriver("MyApp", defaultAccessibility: "public",
+            new ResourceInput("Strings.json", Neutral, Accessibility: "internal"));
+
+        return Verify(driver);
+    }
+
+    [Test]
+    public Task NeutralFileAccessibilityWinsOverCultureFile()
+    {
+        // The neutral file owns the set: it stays internal even though the culture file asks for public.
+        var driver = GeneratorHarness.RunDriver("MyApp",
+            new ResourceInput("Strings.json", Neutral),
+            new ResourceInput("Strings.tr.json", """{ "hello": "Merhaba", "greeting": "Merhaba, {name}!", "inbox": "{count} okunmamış mesajınız var" }""", Accessibility: "public"));
+
+        return Verify(driver);
+    }
 }

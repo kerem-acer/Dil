@@ -23,11 +23,12 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
   </ItemGroup>
 
-  <!-- Resource files for the generated `Messages` set (IStringLocalizer<Messages> reads it). -->
+  <!-- Resource files for the generated `Messages` set (IStringLocalizer<Messages> reads it).
+       Registering the neutral file pulls in its culture siblings (Messages.tr.json, …)
+       automatically; `Messages` is exposed through the public MessageService constructor, so the
+       set is public (the neutral file decides). -->
   <ItemGroup>
-    <AdditionalFiles Include="Resources/Messages.json" DilResource="true" />
-    <AdditionalFiles Include="Resources/Messages.tr.json" DilResource="true" />
-    <AdditionalFiles Include="Resources/Messages.de.json" DilResource="true" />
+    <DilResource Include="Resources/Messages.json" Accessibility="public" />
   </ItemGroup>
 
   <Import Project="..\..\src\Dil\build\Dil.targets" />

@@ -9,7 +9,7 @@
 
     <!-- Package metadata -->
     <PackageId>Dil</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>kerem-acer</Authors>
     <Description>Strongly-typed .NET localization from plain JSON files, generated at build time — typed accessors instead of resx, designer files, or stringly-typed lookups.</Description>
     <PackageTags>localization;i18n;l10n;source-generator;resx;json;globalization</PackageTags>

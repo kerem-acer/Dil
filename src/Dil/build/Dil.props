@@ -4,7 +4,9 @@
   <ItemGroup>
     <CompilerVisibleProperty Include="RootNamespace" />
     <CompilerVisibleProperty Include="ProjectDir" />
+    <CompilerVisibleProperty Include="DilAccessibility" />
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="DilResource" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="Accessibility" />
   </ItemGroup>
 
 </Project>

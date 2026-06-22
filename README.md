@@ -44,20 +44,20 @@ That's it — the package wires the generator and the required MSBuild glue in a
 
 ## Use
 
-Mark your localization files with `DilResource="true"`. **The base name becomes the class** and
-**the trailing segment is the culture**, resx-style: `Strings.json` is the neutral/default language
-of the `Strings` set, `Strings.tr.json` is Turkish, `Strings.de.json` is German,
-`Strings.zh-Hans.json` is Simplified Chinese.
+Register the **neutral file** of each set with `<DilResource Include="..." />`; its culture siblings
+on disk are pulled in automatically. **The base name becomes the class** and **the trailing segment
+is the culture**, resx-style: `Strings.json` is the neutral/default language of the `Strings` set,
+`Strings.tr.json` is Turkish, `Strings.de.json` is German, `Strings.zh-Hans.json` is Simplified Chinese.
 
 ```xml
 <ItemGroup>
-  <AdditionalFiles Include="Resources/Strings.json"    DilResource="true" />
-  <AdditionalFiles Include="Resources/Strings.tr.json" DilResource="true" />
+  <DilResource Include="Resources/Strings.json" /> <!-- also picks up Strings.tr.json, Strings.de.json, … -->
   <!-- A second file group -> a second class, `Errors` -->
-  <AdditionalFiles Include="Resources/Errors.json"     DilResource="true" />
-  <AdditionalFiles Include="Resources/Errors.tr.json"  DilResource="true" />
+  <DilResource Include="Resources/Errors.json" />
 </ItemGroup>
 ```
+
+You can still list culture files individually if you prefer (e.g. to register a subset).
 
 ```jsonc
 // Resources/Strings.json  (neutral — defines the keys and is the fallback)
@@ -90,12 +90,39 @@ Any C# type works as a typed parameter — including your own (`{total:Money}` �
 via `IFormattable`/`ToString()`. The type must be resolvable in your `RootNamespace`, or fully-qualified
 (`{total:global::MyApp.Money}`). The bare `{total}` form is generic, so it accepts any type without that.
 
+## Class accessibility
+
+Generated classes are **`internal` by default** — localization tables are usually an implementation
+detail of one assembly. Make them `public` project-wide with the `DilAccessibility` property, or per
+resource with `Accessibility` metadata on the `<DilResource>` item:
+
+```xml
+<PropertyGroup>
+  <!-- project-wide default: internal (default) or public -->
+  <DilAccessibility>public</DilAccessibility>
+</PropertyGroup>
+
+<ItemGroup>
+  <!-- override one set back to internal -->
+  <DilResource Include="Resources/Strings.json" Accessibility="internal" />
+</ItemGroup>
+```
+
+A set spans several files (neutral + cultures) but produces one class, so the **neutral (cultureless)
+file decides** the set's accessibility; `Accessibility` on a culture file is ignored. The members
+themselves stay `public static` — their visibility is already capped by the class.
+
 ## How file selection works
 
-The generator **only ever sees files you mark `DilResource="true"`** — a source generator
-cannot read arbitrary files, only those passed as `AdditionalFiles`. Your `appsettings.json`,
-`package.json`, and every other JSON file are invisible to it. There is no folder scan and no
-magic filename.
+The generator **only ever sees files you register with `<DilResource>`** — a source generator
+cannot read arbitrary files, only those passed to it as `AdditionalFiles` (which `<DilResource>`
+becomes under the hood). Your `appsettings.json`, `package.json`, and every other JSON file are
+invisible to it. There is no folder scan and no magic filename.
+
+As a convenience, registering a file also pulls in its on-disk **culture siblings** — the build
+adds every `<dir>/<stem>.<culture>.json` next to each registered file. So registering `Strings.json`
+also picks up `Strings.tr.json`, `Strings.de.json`, and so on; you don't list each culture. (This is
+an MSBuild-side expansion, so the files must exist on disk at build time.)
 
 ## Setting the culture
 

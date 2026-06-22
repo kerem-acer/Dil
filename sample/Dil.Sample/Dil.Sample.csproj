@@ -23,15 +23,12 @@
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
-  <!-- Mark localization files. Culture comes from the filename. -->
+  <!-- Register the neutral file of each set; culture siblings (Strings.tr.json, …) are pulled in
+       automatically. Culture comes from the filename. -->
   <ItemGroup>
-    <AdditionalFiles Include="Resources/Strings.json" DilResource="true" />
-    <AdditionalFiles Include="Resources/Strings.tr.json" DilResource="true" />
-    <AdditionalFiles Include="Resources/Strings.de.json" DilResource="true" />
-    <AdditionalFiles Include="Resources/Strings.fr.json" DilResource="true" />
+    <DilResource Include="Resources/Strings.json" />
     <!-- A second, independent resource set -> generates a separate `Errors` class. -->
-    <AdditionalFiles Include="Resources/Errors.json" DilResource="true" />
-    <AdditionalFiles Include="Resources/Errors.tr.json" DilResource="true" />
+    <DilResource Include="Resources/Errors.json" />
   </ItemGroup>
 
   <Import Project="..\..\src\Dil\build\Dil.targets" />
