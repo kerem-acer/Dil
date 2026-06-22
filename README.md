@@ -1,8 +1,11 @@
 # Dil
 
+[![CI](https://github.com/kerem-acer/Dil/actions/workflows/ci.yml/badge.svg)](https://github.com/kerem-acer/Dil/actions/workflows/ci.yml)
+[![NuGet](https://img.shields.io/nuget/v/Dil.svg)](https://www.nuget.org/packages/Dil)
+
 Strongly-typed .NET localization from plain **JSON** files, generated at **build time**.
 
-No resx. No `.Designer.cs`. No IStringLocalizer. No IDE dependency. Just `Strings.Hello`.
+No resx. No `.Designer.cs`. No stringly-typed lookups. No IDE dependency. Just `Strings.Hello`.
 
 ```csharp
 CultureInfo.CurrentUICulture = new("tr");
@@ -27,7 +30,7 @@ and no cross-platform CLI regeneration. Dil keeps the *one good part* of resx �
 - **Generic, formattable params** — `{placeholder}` values are generic (`Greeting<T>(T name)`), so `int`/`string`/etc. flow without `object?`, and `IFormattable` values render in the current culture.
 - **Live reload** — edits to the JSON files are picked up at runtime (on by default; toggle with `Dil.Loc.LiveReload`).
 - **Translations in IntelliSense** — every member's doc comment lists all its translations.
-- **Lean runtime** — multi-targets `netstandard2.0`, `net8.0`, and `net10.0`; parses JSON with `System.Text.Json` (in-box on modern .NET) straight into UTF-8 [Glot](https://github.com/kerem-acer/Glot) `Text`, and builds formatted strings with Glot's pooled `TextBuilder`.
+- **Lean runtime** — multi-targets `netstandard2.0`, `net8.0`, and `net10.0`; parses JSON with `System.Text.Json` (in-box on modern .NET) and assembles formatted strings with [Glot](https://github.com/kerem-acer/Glot)'s pooled `TextBuilder`.
 - **Ambient culture** — works exactly like resx: set `CultureInfo.CurrentUICulture`, read `Strings.X`.
 - **Compile-time safety** — missing translations are reported as build warnings (`DIL001`).
 
@@ -82,6 +85,10 @@ Add a type to pin a parameter: `{name:string}` generates `string name`, `{count:
 { "greet": "Hello, {name:string}!", "items": "{count:int} items" }
 // -> string Greet(string name);  string Items(int count);
 ```
+
+Any C# type works as a typed parameter — including your own (`{total:Money}` → `Money total`), rendered
+via `IFormattable`/`ToString()`. The type must be resolvable in your `RootNamespace`, or fully-qualified
+(`{total:global::MyApp.Money}`). The bare `{total}` form is generic, so it accepts any type without that.
 
 ## How file selection works
 
@@ -149,8 +156,8 @@ Treat them as errors if you want a hard guarantee that every string is translate
 ```
 dotnet build                                    # build everything
 dotnet run --project sample/Dil.Sample          # run the demo
-dotnet run --project tests/Dil.Tests            # run the TUnit tests
-dotnet pack src/Dil -c Release -o artifacts     # produce the NuGet package
+dotnet test                                     # run the TUnit tests
+dotnet pack Dil.slnx -c Release -o artifacts    # produce both NuGet packages
 ```
 
 ## Project layout
