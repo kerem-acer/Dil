@@ -1,0 +1,16 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+
+# Rider / VS
+.idea/
+.vs/
+*.user
+
+# macOS
+.DS_Store
+
+# NuGet
+*.nupkg

@@ -1,0 +1,5 @@
+{
+  "hello": "Merhaba",
+  "sayHelloTo": "Merhaba {name}!",
+  "items": "{count} öğeniz var"
+}

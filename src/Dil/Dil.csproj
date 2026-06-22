@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <PackageId>Dil</PackageId>
+    <Description>Strongly-typed .NET localization from plain JSON files, generated at build time. No resx, no designer files, no IStringLocalizer.</Description>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/sample/">
+    <Project Path="sample/Dil.Sample/Dil.Sample.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Dil.Generator/Dil.Generator.csproj" />
+    <Project Path="src/Dil/Dil.csproj" />
+  </Folder>
+</Solution>

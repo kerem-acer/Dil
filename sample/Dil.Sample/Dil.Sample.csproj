@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Dil.Sample</RootNamespace>
+    <!-- Write generated files to obj/generated so you can inspect them -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Dil\Dil.csproj" />
+    <ProjectReference Include="..\..\src\Dil.Generator\Dil.Generator.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- Make RootNamespace visible to the generator so Resources lands in your namespace -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="RootNamespace" />
+  </ItemGroup>
+
+  <!-- l.json defines the keys (and is the default/fallback language) -->
+  <ItemGroup>
+    <AdditionalFiles Include="L/l.json" />
+    <None Update="L/l.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="L/tr.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="L/de.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
