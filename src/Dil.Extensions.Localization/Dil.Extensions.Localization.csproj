@@ -8,7 +8,7 @@
 
     <!-- Package metadata -->
     <PackageId>Dil.Extensions.Localization</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>kerem-acer</Authors>
     <Description>Microsoft.Extensions.Localization adapter for Dil: IStringLocalizer, IStringLocalizer&lt;T&gt;, IStringLocalizerFactory and DI (AddDilLocalization) over Dil's typed JSON localization.</Description>
     <PackageTags>localization;i18n;l10n;aspnetcore;istringlocalizer;dependencyinjection;dil</PackageTags>
