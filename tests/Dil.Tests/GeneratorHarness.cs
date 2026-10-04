@@ -9,10 +9,11 @@ using Microsoft.CodeAnalysis.Text;
 namespace Dil.Tests;
 
 /// <summary>
-/// A resource file fed to the generator: a path, its JSON, whether it is marked DilResource, and an
-/// optional per-file Accessibility metadata value (null = unset).
+/// A resource file fed to the generator: a path, its JSON, whether it is marked DilResource, and
+/// optional per-file Accessibility and DefaultCulture metadata values (null = unset).
 /// </summary>
-readonly record struct ResourceInput(string Path, string Json, bool DilResource = true, string? Accessibility = null);
+readonly record struct ResourceInput(
+    string Path, string Json, bool DilResource = true, string? Accessibility = null, string? DefaultCulture = null);
 
 /// <summary>Runs <see cref="LocalizationGenerator"/> in isolation via <see cref="CSharpGeneratorDriver"/>.</summary>
 static class GeneratorHarness
@@ -32,14 +33,23 @@ static class GeneratorHarness
     /// (<paramref name="defaultAccessibility"/>, null = unset).
     /// </summary>
     public static GeneratorDriver RunDriver(string rootNamespace, string? defaultAccessibility, params ResourceInput[] files) =>
-        RunDriver(DefaultAssemblyName, rootNamespace, defaultAccessibility, files);
+        RunDriver(rootNamespace, defaultAccessibility, null, files);
+
+    /// <summary>
+    /// Runs the generator with optional project-wide <c>DilAccessibility</c> and <c>DilDefaultCulture</c>
+    /// values (null = unset).
+    /// </summary>
+    public static GeneratorDriver RunDriver(
+        string rootNamespace, string? defaultAccessibility, string? defaultCulture, params ResourceInput[] files) =>
+        Run(DefaultAssemblyName, rootNamespace, defaultAccessibility, defaultCulture, files);
 
     /// <summary>Runs the generator as if compiling <paramref name="assemblyName"/>.</summary>
     public static GeneratorDriver RunDriverAs(string assemblyName, string rootNamespace, params ResourceInput[] files) =>
-        RunDriver(assemblyName, rootNamespace, null, files);
+        Run(assemblyName, rootNamespace, null, null, files);
 
-    static GeneratorDriver RunDriver(
-        string assemblyName, string rootNamespace, string? defaultAccessibility, ResourceInput[] files)
+    static GeneratorDriver Run(
+        string assemblyName, string rootNamespace, string? defaultAccessibility, string? defaultCulture,
+        ResourceInput[] files)
     {
         var compilation = CSharpCompilation.Create(
             assemblyName,
@@ -54,7 +64,8 @@ static class GeneratorHarness
         var optionsProvider = new TestOptionsProvider(
             rootNamespace,
             defaultAccessibility,
-            files.ToDictionary(f => f.Path, f => (f.DilResource, f.Accessibility)));
+            defaultCulture,
+            files.ToDictionary(f => f.Path, f => f));
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             generators: [new LocalizationGenerator().AsSourceGenerator()],
@@ -96,12 +107,13 @@ static class GeneratorHarness
 
     sealed class TestOptionsProvider : AnalyzerConfigOptionsProvider
     {
-        readonly IReadOnlyDictionary<string, (bool DilResource, string? Accessibility)> _files;
+        readonly IReadOnlyDictionary<string, ResourceInput> _files;
 
         public TestOptionsProvider(
             string rootNamespace,
             string? defaultAccessibility,
-            IReadOnlyDictionary<string, (bool, string?)> files)
+            string? defaultCulture,
+            IReadOnlyDictionary<string, ResourceInput> files)
         {
             var global = new Dictionary<string, string>
             {
@@ -110,6 +122,11 @@ static class GeneratorHarness
             if (defaultAccessibility is not null)
             {
                 global["build_property.DilAccessibility"] = defaultAccessibility;
+            }
+
+            if (defaultCulture is not null)
+            {
+                global["build_property.DilDefaultCulture"] = defaultCulture;
             }
 
             GlobalOptions = new Options(global);
@@ -129,6 +146,11 @@ static class GeneratorHarness
                 if (meta.Accessibility is not null)
                 {
                     map["build_metadata.AdditionalFiles.Accessibility"] = meta.Accessibility;
+                }
+
+                if (meta.DefaultCulture is not null)
+                {
+                    map["build_metadata.AdditionalFiles.DefaultCulture"] = meta.DefaultCulture;
                 }
             }
 

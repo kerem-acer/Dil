@@ -17,6 +17,7 @@ namespace Dil.Generator;
 /// localization resource when it is added as <c>&lt;AdditionalFiles Include="..." DilResource="true" /&gt;</c>.
 /// Other JSON files are never read. The base filename is the class name and the trailing dotted segment
 /// is the culture: <c>Strings.json</c> is the neutral set <c>Strings</c>, <c>Strings.tr.json</c> is Turkish.
+/// A set doesn't need a neutral file; without one, its culture files together define its keys.
 /// </summary>
 [Generator]
 public sealed class LocalizationGenerator : IIncrementalGenerator
@@ -37,16 +38,7 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
     static readonly DiagnosticDescriptor MissingTranslation = new(
         id: "DIL001",
         title: "Missing translation",
-        messageFormat: "Culture '{0}' is missing a translation for key '{1}' (defined in the neutral resource)",
-        category: "Dil",
-        DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
-
-    static readonly DiagnosticDescriptor NoNeutralFile = new(
-        id: "DIL002",
-        title: "No neutral resource file",
-        messageFormat:
-        "Resource set '{0}' has no neutral (culture-less) file to define its keys (for example '{0}.json')",
+        messageFormat: "Culture '{0}' is missing a translation for key '{1}'",
         category: "Dil",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
@@ -71,14 +63,20 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
                 ? ns!
                 : "Dil");
 
+        var defaultCulture = context.AnalyzerConfigOptionsProvider.Select(static (p, _) =>
+            TryGet(p.GlobalOptions, "build_property.DilDefaultCulture", out var culture)
+                ? culture?.Trim() ?? string.Empty
+                : string.Empty);
+
         // Sets from every assembly share Loc's process-wide table and the app's output folder, so the
         // assembly name scopes both a set's key and its files' folder: two libraries can each have a
         // `Strings` set without one overwriting the other. It is the compiled assembly's name, so it
         // matches typeof(T).Assembly at runtime and the Dil/$(TargetName) folder Dil.targets copies into.
         var assemblyName = context.CompilationProvider.Select(static (c, _) => c.AssemblyName ?? string.Empty);
 
-        context.RegisterSourceOutput(files.Combine(rootNamespace).Combine(assemblyName),
-            static (spc, pair) => Generate(spc, pair.Left.Left, pair.Left.Right, pair.Right));
+        context.RegisterSourceOutput(files.Combine(rootNamespace).Combine(defaultCulture).Combine(assemblyName),
+            static (spc, pair) =>
+                Generate(spc, pair.Left.Left.Left, pair.Left.Left.Right, pair.Left.Right, pair.Right));
     }
 
     static ResInfo? Identify(AdditionalText file, AnalyzerConfigOptionsProvider provider)
@@ -100,7 +98,10 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         TryGet(provider.GlobalOptions, "build_property.ProjectDir", out var projectDir);
         var relPath = MakeRelative(projectDir, file.Path);
 
-        return new ResInfo(file, set, culture, relPath, ResolveAccessibility(opts, provider.GlobalOptions));
+        TryGet(opts, "build_metadata.AdditionalFiles.DefaultCulture", out var defaultCulture);
+
+        return new ResInfo(file, set, culture, relPath, ResolveAccessibility(opts, provider.GlobalOptions),
+            defaultCulture?.Trim() ?? string.Empty);
     }
 
     // Per-resource accessibility for the generated class: per-file metadata wins, else the
@@ -140,11 +141,12 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
     {
         var text = info.File.GetText(ct)?.ToString() ?? string.Empty;
         var entries = FlatJson.Parse(text);
-        return new ResFile(info.Set, info.Culture, info.RelPath, info.File.Path, info.Accessibility,
+        return new ResFile(info.Set, info.Culture, info.RelPath, info.File.Path, info.Accessibility, info.DefaultCulture,
             new EquatableArray<KeyValuePair<string, string>>(entries.ToArray()));
     }
 
-    static void Generate(SourceProductionContext spc, ImmutableArray<ResFile> files, string ns, string assembly)
+    static void Generate(
+        SourceProductionContext spc, ImmutableArray<ResFile> files, string ns, string defaultCulture, string assembly)
     {
         if (files.IsDefaultOrEmpty)
         {
@@ -154,11 +156,13 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         // One generated class per resource set (grouped by base filename).
         foreach (var set in files.GroupBy(f => f.Set, StringComparer.Ordinal))
         {
-            EmitSet(spc, ns, assembly, set.Key, set.ToList());
+            EmitSet(spc, ns, assembly, set.Key, set.ToList(), defaultCulture);
         }
     }
 
-    static void EmitSet(SourceProductionContext spc, string ns, string assembly, string setName, List<ResFile> files)
+    static void EmitSet(
+        SourceProductionContext spc, string ns, string assembly, string setName, List<ResFile> files,
+        string projectDefaultCulture)
     {
         var className = ToPascal(setName);
         if (className.Length == 0)
@@ -166,31 +170,52 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
             return;
         }
 
-        var neutral = files.Where(f => f.Culture.Length == 0).ToList();
-        if (neutral.Count == 0)
-        {
-            spc.ReportDiagnostic(Diagnostic.Create(NoNeutralFile, FileStart(files[0].Path), setName));
-            return;
-        }
+        // The set's default culture: the first file that names one (neutral files first), else the
+        // project-wide DilDefaultCulture. Siblings copy the metadata of the file that was registered, so
+        // in practice every file of a set agrees.
+        var defaultCulture = files
+            .OrderBy(f => f.Culture.Length == 0 ? 0 : 1)
+            .Select(f => f.DefaultCulture)
+            .FirstOrDefault(c => c.Length > 0) ?? projectDefaultCulture;
+        var defaultChain = CultureChain(defaultCulture);
 
-        // Ordered union of neutral keys (first-seen order); on a duplicate key the last value wins,
-        // matching the runtime parser (System.Text.Json last-wins for duplicate property names).
-        var keyOrder = new List<string>();
-        var keyValues = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var f in neutral)
+        // Each culture's keys ("" is the neutral file) in first-seen order; on a duplicate key the last
+        // value wins, matching the runtime parser (System.Text.Json last-wins for duplicate property names).
+        var cultures = new List<string>();
+        var tables = new Dictionary<string, (List<string> Order, Dictionary<string, string> Values)>(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var f in files)
         {
+            if (!tables.TryGetValue(f.Culture, out var table))
+            {
+                tables[f.Culture] = table = ([], [with(StringComparer.Ordinal)]);
+                cultures.Add(f.Culture);
+            }
+
             foreach (var kv in f.Entries)
             {
-                if (!keyValues.ContainsKey(kv.Key))
+                if (!table.Values.ContainsKey(kv.Key))
                 {
-                    keyOrder.Add(kv.Key);
+                    table.Order.Add(kv.Key);
                 }
 
-                keyValues[kv.Key] = kv.Value;
+                table.Values[kv.Key] = kv.Value;
             }
         }
 
-        // DIL001: every non-neutral culture in this set must cover every neutral key.
+        // The cultures a member's <summary> text is taken from, best first: the default culture (most
+        // specific first), then the neutral file, then the other cultures in the order they were seen.
+        var precedence = defaultChain.Where(tables.ContainsKey)
+            .Concat(cultures.Where(c => c.Length == 0))
+            .Concat(cultures.Where(c => c.Length > 0 && !defaultChain.Contains(c, StringComparer.OrdinalIgnoreCase)))
+            .ToList();
+
+        // The neutral file defines the keys. A set without one is defined by all of its culture files.
+        var keyOrder = tables.TryGetValue(string.Empty, out var neutral)
+            ? neutral.Order
+            : precedence.SelectMany(c => tables[c].Order).Distinct(StringComparer.Ordinal).ToList();
+
+        // DIL001: every non-neutral culture in this set must cover every key.
         foreach (var group in files.Where(f => f.Culture.Length > 0)
                      .GroupBy(f => f.Culture, StringComparer.OrdinalIgnoreCase))
         {
@@ -239,18 +264,27 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
             }
         }
 
-        // One class per set, but a set spans several files; the neutral file owns it, so its
-        // accessibility decides (culture files' accessibility is ignored).
-        var accessibility = neutral[0].Accessibility;
+        // One class per set, but a set spans several files; one of them owns it and its accessibility
+        // decides: the neutral file, else the default culture's file, else the first file.
+        var owner = files.FirstOrDefault(f => f.Culture.Length == 0)
+                    ?? defaultChain
+                        .Select(c => files.FirstOrDefault(f => string.Equals(f.Culture, c, StringComparison.OrdinalIgnoreCase)))
+                        .FirstOrDefault(f => f is not null)
+                    ?? files[0];
 
-        var keys = keyOrder.Select(k => new KeyValuePair<string, string>(k, keyValues[k])).ToList();
+        var keys = keyOrder
+            .Select(k => new KeyValuePair<string, string>(k,
+                precedence.Select(c => tables[c].Values).First(v => v.ContainsKey(k))[k]))
+            .ToList();
         spc.AddSource("Dil." + className + ".g.cs",
-            SourceText.From(Emit(ns, className, Scoped(assembly, className), accessibility, keys, manifest, translations),
+            SourceText.From(
+                Emit(ns, className, Scoped(assembly, className), owner.Accessibility, defaultCulture, keys, manifest,
+                    translations),
                 Encoding.UTF8));
     }
 
     static string Emit(
-        string ns, string className, string set, string accessibility,
+        string ns, string className, string set, string accessibility, string defaultCulture,
         List<KeyValuePair<string, string>> keys,
         List<(string Culture, string RelPath)> manifest,
         Dictionary<string, List<(string Culture, string Value)>> translations)
@@ -278,7 +312,7 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
             sb.AppendLine("                (" + Literal(culture) + ", " + Literal(relPath) + "),");
         }
 
-        sb.AppendLine("            });");
+        sb.AppendLine(defaultCulture.Length > 0 ? "            }, " + Literal(defaultCulture) + ");" : "            });");
         sb.AppendLine("        }");
         sb.AppendLine();
 
@@ -535,6 +569,35 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         return false;
     }
 
+    // A culture name and its parents, most specific first (en-US -> en-US, en), the same chain the runtime
+    // walks for the default culture. An unknown name is kept as-is.
+    static List<string> CultureChain(string culture)
+    {
+        var chain = new List<string>();
+        if (culture.Length == 0)
+        {
+            return chain;
+        }
+
+        try
+        {
+            for (var c = CultureInfo.GetCultureInfo(culture); !string.IsNullOrEmpty(c.Name); c = c.Parent)
+            {
+                chain.Add(c.Name);
+            }
+        }
+        catch (CultureNotFoundException)
+        {
+        }
+
+        if (chain.Count == 0)
+        {
+            chain.Add(culture);
+        }
+
+        return chain;
+    }
+
     static HashSet<string> BuildKnownCultures()
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -567,7 +630,8 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;")
             .Replace("\r", " ").Replace("\n", " ");
 
-    readonly record struct ResInfo(AdditionalText File, string Set, string Culture, string RelPath, string Accessibility);
+    readonly record struct ResInfo(
+        AdditionalText File, string Set, string Culture, string RelPath, string Accessibility, string DefaultCulture);
 
     sealed record ResFile(
         string Set,
@@ -575,6 +639,7 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         string RelPath,
         string Path,
         string Accessibility,
+        string DefaultCulture,
         EquatableArray<KeyValuePair<string, string>> Entries);
 
     static readonly HashSet<string> CsharpKeywords =

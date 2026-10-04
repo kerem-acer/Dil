@@ -5,8 +5,10 @@
     <CompilerVisibleProperty Include="RootNamespace" />
     <CompilerVisibleProperty Include="ProjectDir" />
     <CompilerVisibleProperty Include="DilAccessibility" />
+    <CompilerVisibleProperty Include="DilDefaultCulture" />
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="DilResource" />
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="Accessibility" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="DefaultCulture" />
   </ItemGroup>
 
 </Project>

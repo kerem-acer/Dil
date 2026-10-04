@@ -108,4 +108,33 @@ public sealed class GeneratedCodeTests
             return type.GetProperty("Hello")!;
         }
     }
+
+    [Test]
+    public async Task SetWithoutNeutralFileFallsBackToItsDefaultCulture()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "dil-tests", Guid.NewGuid().ToString("N"));
+        var files = Path.Combine(dir, "Dil", GeneratorHarness.DefaultAssemblyName); // the build copies them here
+        Directory.CreateDirectory(files);
+        File.WriteAllText(Path.Combine(files, "Menu.en.json"), """{ "open": "Open" }""");
+        File.WriteAllText(Path.Combine(files, "Menu.tr.json"), """{ "open": "Aç" }""");
+        Loc.LiveReload = false;
+        Loc.Configure(dir);
+
+        // The generated static constructor must pass the default culture on to Loc.Register.
+        var driver = GeneratorHarness.RunDriver("MyApp",
+            new ResourceInput("Menu.en.json", """{ "open": "Open" }""", DefaultCulture: "en"),
+            new ResourceInput("Menu.tr.json", """{ "open": "Aç" }"""));
+        using var pe = new MemoryStream();
+        var emit = GeneratorHarness.CompileGenerated(driver).Emit(pe);
+        await Assert.That(emit.Success).IsTrue();
+
+        var open = System.Reflection.Assembly.Load(pe.ToArray()).GetType("MyApp.Menu", throwOnError: true)!
+            .GetProperty("Open")!;
+
+        CultureInfo.CurrentUICulture = new CultureInfo("tr-TR");
+        await Assert.That(open.GetValue(null)).IsEqualTo("Aç");
+
+        CultureInfo.CurrentUICulture = new CultureInfo("fr-FR"); // no fr file -> the default culture, en
+        await Assert.That(open.GetValue(null)).IsEqualTo("Open");
+    }
 }

@@ -57,6 +57,57 @@ public sealed class LocTests
     }
 
     [Test]
+    public async Task CultureFilesWithoutNeutralFallBackToTheKey()
+    {
+        Setup(
+            new Res("Strings.en.json", "en", """{ "hello": "Hello" }"""),
+            new Res("Strings.tr.json", "tr", """{ "hello": "Merhaba" }"""));
+
+        CultureInfo.CurrentUICulture = new CultureInfo("tr-TR");
+        await Assert.That(Loc.Get(Set, "hello")).IsEqualTo("Merhaba");
+
+        CultureInfo.CurrentUICulture = new CultureInfo("fr-FR"); // no fr, no default, no neutral
+        await Assert.That(Loc.Get(Set, "hello")).IsEqualTo("hello");
+    }
+
+    [Test]
+    public async Task DefaultCultureIsUsedWhenTheCurrentCultureHasNoValue()
+    {
+        Setup("en",
+            new Res("Strings.en.json", "en", """{ "hello": "Hello", "bye": "Goodbye" }"""),
+            new Res("Strings.tr.json", "tr", """{ "hello": "Merhaba" }"""));
+
+        CultureInfo.CurrentUICulture = new CultureInfo("fr-FR"); // fr-FR -> fr -> en
+        await Assert.That(Loc.Get(Set, "hello")).IsEqualTo("Hello");
+
+        CultureInfo.CurrentUICulture = new CultureInfo("tr");
+        await Assert.That(Loc.Get(Set, "hello")).IsEqualTo("Merhaba");
+        await Assert.That(Loc.Get(Set, "bye")).IsEqualTo("Goodbye"); // not translated -> default culture
+        await Assert.That(Loc.Get(Set, "missing")).IsEqualTo("missing");
+    }
+
+    [Test]
+    public async Task DefaultCultureComesBeforeNeutral()
+    {
+        Setup("en",
+            new Res("Strings.json", "", """{ "hello": "Hello (neutral)", "only": "Neutral only" }"""),
+            new Res("Strings.en.json", "en", """{ "hello": "Hello" }"""));
+
+        CultureInfo.CurrentUICulture = new CultureInfo("de");
+        await Assert.That(Loc.Get(Set, "hello")).IsEqualTo("Hello");
+        await Assert.That(Loc.Get(Set, "only")).IsEqualTo("Neutral only");
+    }
+
+    [Test]
+    public async Task RegionDefaultCultureFallsBackToItsParent()
+    {
+        Setup("en-US", new Res("Strings.en.json", "en", """{ "hello": "Hello" }"""));
+
+        CultureInfo.CurrentUICulture = new CultureInfo("de"); // de -> en-US -> en
+        await Assert.That(Loc.Get(Set, "hello")).IsEqualTo("Hello");
+    }
+
+    [Test]
     public async Task UnknownKeyReturnsTheKeyItself()
     {
         Setup(new Res("Strings.json", "", """{ "hello": "Hello" }"""));
@@ -249,6 +300,22 @@ public sealed class LocTests
         // Invariant current UI culture from [Before]: there is no culture-specific table.
         await Assert.That(Loc.GetAllStrings(Set, includeParentCultures: false).Any()).IsFalse();
         await Assert.That(Loc.GetAllStrings(Set, includeParentCultures: true).Count()).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task GetAllStringsOverlaysCurrentCultureOnDefaultCultureOnNeutral()
+    {
+        Setup("en",
+            new Res("Strings.json", "", """{ "a": "A (neutral)", "b": "B (neutral)", "c": "C (neutral)" }"""),
+            new Res("Strings.en.json", "en", """{ "a": "A (en)", "b": "B (en)" }"""),
+            new Res("Strings.tr.json", "tr", """{ "a": "A (tr)" }"""));
+
+        CultureInfo.CurrentUICulture = new CultureInfo("tr-TR");
+        var all = Loc.GetAllStrings(Set).ToDictionary(p => p.Key, p => p.Value);
+
+        await Assert.That(all["a"]).IsEqualTo("A (tr)");
+        await Assert.That(all["b"]).IsEqualTo("B (en)");
+        await Assert.That(all["c"]).IsEqualTo("C (neutral)");
     }
 
     [Test]

@@ -10,10 +10,12 @@ namespace Dil;
 
 /// <summary>
 /// Runtime backing the generated resource classes. Each generated class is a <em>resource set</em>
-/// (named after its JSON file's base name) that registers its files via <see cref="Register"/> under
-/// its assembly and class name (<c>"MyLib/Strings"</c>), so same-named sets in different assemblies
-/// stay apart. Lookups resolve keys against the ambient <see cref="CultureInfo.CurrentUICulture"/> —
-/// exactly like resx, with parent-culture and default fallback. Sets are independent, so two sets may share key names.
+/// (named after its JSON file's base name) that registers its files via
+/// <see cref="Register(string, ValueTuple{string, string}[], string)"/> under its assembly and class
+/// name (<c>"MyLib/Strings"</c>), so same-named sets in different assemblies stay apart. Lookups
+/// resolve keys against the ambient <see cref="CultureInfo.CurrentUICulture"/> — exactly like resx,
+/// with parent-culture, default-culture and neutral fallback. Sets are independent, so two sets may
+/// share key names.
 /// When <see cref="LiveReload"/> is on (the default) edits to the JSON files are picked up at runtime.
 /// </summary>
 public static class Loc
@@ -64,8 +66,18 @@ public static class Loc
     /// Called by generated code to declare which files back a resource set.
     /// Paths are relative to the application base directory.
     /// </summary>
-    public static void Register(string set, (string Culture, string Path)[]? manifest)
+    public static void Register(string set, (string Culture, string Path)[]? manifest) =>
+        Register(set, manifest, null);
+
+    /// <summary>
+    /// Called by generated code to declare which files back a resource set, and the culture to fall
+    /// back to when the current UI culture (and its parents) has no value for a key. The default culture
+    /// (and its parents) is tried before the neutral file, like resx's <c>NeutralResourcesLanguage</c>.
+    /// Paths are relative to the application base directory.
+    /// </summary>
+    public static void Register(string set, (string Culture, string Path)[]? manifest, string? defaultCulture)
     {
+        var defaultChain = CultureChain(defaultCulture);
         lock (Gate)
         {
             if (!Sets.TryGetValue(set, out var rs))
@@ -74,6 +86,7 @@ public static class Loc
             }
 
             rs.Manifest = manifest ?? [];
+            rs.DefaultChain = defaultChain;
             rs.Loaded = false;
             DisposeWatchers(rs);
         }
@@ -93,11 +106,15 @@ public static class Loc
         }
     }
 
-    /// <summary>Resolve a key for the current UI culture, falling back to parent cultures then the default (neutral) file.</summary>
+    /// <summary>
+    /// Resolve a key for the current UI culture, falling back to parent cultures, then the set's default
+    /// culture (and its parents), then the neutral file, then the key itself.
+    /// </summary>
     public static string Get(string set, string key)
     {
         Dictionary<string, Dictionary<string, string>> tables;
         Dictionary<string, string> def;
+        string[] defaultChain;
         lock (Gate)
         {
             var rs = GetOrCreate(set);
@@ -108,6 +125,7 @@ public static class Loc
 
             tables = rs.Tables;
             def = rs.Default;
+            defaultChain = rs.DefaultChain;
         }
 
         for (var c = CultureInfo.CurrentUICulture;
@@ -121,15 +139,24 @@ public static class Loc
             }
         }
 
+        foreach (var name in defaultChain)
+        {
+            if (tables.TryGetValue(name, out var table) &&
+                table.TryGetValue(key, out var value))
+            {
+                return value;
+            }
+        }
+
         return def.TryGetValue(key, out var d) ? d : key;
     }
 
     /// <summary>
     /// Enumerate every key/value pair visible for the current UI culture. When
     /// <paramref name="includeParentCultures"/> is <see langword="true"/> (the default) the result is the
-    /// fully resolved view: the neutral (default) table overlaid by each culture up the
-    /// <see cref="CultureInfo.CurrentUICulture"/> chain, with the most-specific culture winning — the same
-    /// values <see cref="Get"/> would return. When <see langword="false"/> only the current UI culture's
+    /// fully resolved view: the neutral table overlaid by the set's default culture chain, then by each
+    /// culture up the <see cref="CultureInfo.CurrentUICulture"/> chain, with the most-specific culture
+    /// winning — the same values <see cref="Get"/> would return. When <see langword="false"/> only the current UI culture's
     /// own table entries are returned, with no neutral or parent-culture merge (an empty sequence if that
     /// culture has no table). Uses the same snapshot pattern as <see cref="Get"/>.
     /// </summary>
@@ -140,6 +167,7 @@ public static class Loc
     {
         Dictionary<string, Dictionary<string, string>> tables;
         Dictionary<string, string> def;
+        string[] defaultChain;
         lock (Gate)
         {
             var rs = GetOrCreate(set);
@@ -150,6 +178,7 @@ public static class Loc
 
             tables = rs.Tables;
             def = rs.Default;
+            defaultChain = rs.DefaultChain;
         }
 
         if (!includeParentCultures)
@@ -159,7 +188,8 @@ public static class Loc
                 : [];
         }
 
-        // Seed with the neutral default, then overlay each culture in the chain, most-specific last.
+        // Seed with the neutral file, then overlay each culture in the chain, most-specific last. The
+        // default culture's chain goes at the end, so it is overlaid first and the current chain wins.
         var merged = new Dictionary<string, string>(def, StringComparer.Ordinal);
         var chain = new List<string>();
         for (var c = CultureInfo.CurrentUICulture;
@@ -168,6 +198,8 @@ public static class Loc
         {
             chain.Add(c.Name);
         }
+
+        chain.AddRange(defaultChain);
 
         for (var i = chain.Count - 1; i >= 0; i--)
         {
@@ -258,6 +290,32 @@ public static class Loc
         IFormattable f => f.ToString(null, CultureInfo.CurrentCulture),
         _ => value.ToString() ?? string.Empty,
     };
+
+    // A culture name and its parents, most specific first (en-US -> en-US, en). A name this runtime
+    // doesn't know (e.g. under invariant globalization) is still looked up as-is.
+    static string[] CultureChain(string? culture)
+    {
+        var name = culture?.Trim();
+        if (name is null || name.Length == 0)
+        {
+            return [];
+        }
+
+        try
+        {
+            var chain = new List<string>();
+            for (var c = CultureInfo.GetCultureInfo(name); !string.IsNullOrEmpty(c.Name); c = c.Parent)
+            {
+                chain.Add(c.Name);
+            }
+
+            return chain.Count > 0 ? chain.ToArray() : [name];
+        }
+        catch (CultureNotFoundException)
+        {
+            return [name];
+        }
+    }
 
     static ResourceSet GetOrCreate(string set)
     {
@@ -470,6 +528,7 @@ public static class Loc
     sealed class ResourceSet
     {
         public (string Culture, string Path)[] Manifest = [];
+        public string[] DefaultChain = [];
         public Dictionary<string, Dictionary<string, string>> Tables = [with(StringComparer.OrdinalIgnoreCase)];
         public Dictionary<string, string> Default = [with(StringComparer.Ordinal)];
         public bool Loaded;
