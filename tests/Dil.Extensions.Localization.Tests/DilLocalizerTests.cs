@@ -60,10 +60,23 @@ public sealed class DilLocalizerTests
     [Test]
     public async Task Typed_localizer_maps_to_set_named_after_T()
     {
-        LocFixture.Setup("Strings", ("Strings.json", "", """{ "hello": "Hello" }"""));
+        LocFixture.Setup(Strings.Set, ("Strings.json", "", """{ "hello": "Hello" }"""));
         var loc = new DilStringLocalizer<Strings>();
 
         await Assert.That(loc["hello"].Value).IsEqualTo("Hello");
+    }
+
+    [Test]
+    public async Task Same_named_set_from_another_assembly_is_kept_apart()
+    {
+        var dir = LocFixture.Setup(Strings.Set, ("Strings.json", "", """{ "hello": "mine" }"""));
+        File.WriteAllText(Path.Combine(dir, "Other.json"), """{ "hello": "theirs" }""");
+        Loc.Register("OtherLib/Strings", [("", "Other.json")]);
+        var factory = new DilStringLocalizerFactory();
+
+        await Assert.That(new DilStringLocalizer<Strings>()["hello"].Value).IsEqualTo("mine");
+        await Assert.That(factory.Create(typeof(Strings))["hello"].Value).IsEqualTo("mine");
+        await Assert.That(factory.Create("OtherLib.Strings", "OtherLib")["hello"].Value).IsEqualTo("theirs");
     }
 
     [Test]
@@ -78,11 +91,12 @@ public sealed class DilLocalizerTests
     [Test]
     public async Task Factory_creates_localizer_from_type_and_base_name()
     {
-        LocFixture.Setup("Strings", ("Strings.json", "", """{ "hello": "Hello" }"""));
+        LocFixture.Setup(Strings.Set, ("Strings.json", "", """{ "hello": "Hello" }"""));
         var factory = new DilStringLocalizerFactory();
+        var assembly = typeof(Strings).Assembly.GetName().Name!;
 
         await Assert.That(factory.Create(typeof(Strings))["hello"].Value).IsEqualTo("Hello");
-        await Assert.That(factory.Create("My.App.Strings", "asm")["hello"].Value).IsEqualTo("Hello");
+        await Assert.That(factory.Create("My.App.Strings", assembly)["hello"].Value).IsEqualTo("Hello");
     }
 
     [Test]
@@ -107,7 +121,7 @@ public sealed class DilLocalizerTests
     [Test]
     public async Task AddDilLocalization_registers_factory_and_typed_localizer()
     {
-        LocFixture.Setup("Strings", ("Strings.json", "", """{ "hello": "Hello" }"""));
+        LocFixture.Setup(Strings.Set, ("Strings.json", "", """{ "hello": "Hello" }"""));
 
         var provider = new ServiceCollection().AddDilLocalization().BuildServiceProvider();
 

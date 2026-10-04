@@ -10,10 +10,10 @@ namespace MyApp
 
         static Customer()
         {
-            global::Dil.Loc.Register("Customer", new (string, string)[]
+            global::Dil.Loc.Register("DilGeneratorTests/Customer", new (string, string)[]
             {
-                ("", "Customer.json"),
-                ("tr", "Customer.tr.json"),
+                ("", "Dil/DilGeneratorTests/Customer.json"),
+                ("tr", "Dil/DilGeneratorTests/Customer.tr.json"),
             });
         }
 
@@ -23,13 +23,13 @@ namespace MyApp
         /// <item><c>tr</c>: Ad</item>
         /// </list>
         /// </remarks>
-        public static string Name => global::Dil.Loc.Get("Customer", "name");
+        public static string Name => global::Dil.Loc.Get("DilGeneratorTests/Customer", "name");
         /// <summary>Email</summary>
         /// <remarks>Translations:
         /// <list type="bullet">
         /// <item><c>tr</c>: E-posta</item>
         /// </list>
         /// </remarks>
-        public static string Email => global::Dil.Loc.Get("Customer", "email");
+        public static string Email => global::Dil.Loc.Get("DilGeneratorTests/Customer", "email");
     }
 }

@@ -10,9 +10,10 @@ namespace Dil;
 
 /// <summary>
 /// Runtime backing the generated resource classes. Each generated class is a <em>resource set</em>
-/// (named after its JSON file's base name) that registers its files via <see cref="Register"/> and
-/// resolves keys against the ambient <see cref="CultureInfo.CurrentUICulture"/> — exactly like resx,
-/// with parent-culture and default fallback. Sets are independent, so two sets may share key names.
+/// (named after its JSON file's base name) that registers its files via <see cref="Register"/> under
+/// its assembly and class name (<c>"MyLib/Strings"</c>), so same-named sets in different assemblies
+/// stay apart. Lookups resolve keys against the ambient <see cref="CultureInfo.CurrentUICulture"/> —
+/// exactly like resx, with parent-culture and default fallback. Sets are independent, so two sets may share key names.
 /// When <see cref="LiveReload"/> is on (the default) edits to the JSON files are picked up at runtime.
 /// </summary>
 public static class Loc

@@ -10,13 +10,13 @@ namespace MyApp
 
         static OrderNew()
         {
-            global::Dil.Loc.Register("OrderNew", new (string, string)[]
+            global::Dil.Loc.Register("DilGeneratorTests/OrderNew", new (string, string)[]
             {
-                ("", "Order.New.json"),
+                ("", "Dil/DilGeneratorTests/Order.New.json"),
             });
         }
 
         /// <summary>OK</summary>
-        public static string Ok => global::Dil.Loc.Get("OrderNew", "ok");
+        public static string Ok => global::Dil.Loc.Get("DilGeneratorTests/OrderNew", "ok");
     }
 }

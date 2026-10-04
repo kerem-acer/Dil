@@ -10,13 +10,13 @@ namespace MyApp
 
         static User()
         {
-            global::Dil.Loc.Register("User", new (string, string)[]
+            global::Dil.Loc.Register("DilGeneratorTests/User", new (string, string)[]
             {
-                ("", "User.json"),
+                ("", "Dil/DilGeneratorTests/User.json"),
             });
         }
 
         /// <summary>Id</summary>
-        public static string Id => global::Dil.Loc.Get("User", "id");
+        public static string Id => global::Dil.Loc.Get("DilGeneratorTests/User", "id");
     }
 }

@@ -17,6 +17,12 @@ readonly record struct ResourceInput(string Path, string Json, bool DilResource 
 /// <summary>Runs <see cref="LocalizationGenerator"/> in isolation via <see cref="CSharpGeneratorDriver"/>.</summary>
 static class GeneratorHarness
 {
+    /// <summary>
+    /// The assembly the generator runs in unless a test names one; it prefixes every set key and
+    /// manifest path in the generated code.
+    /// </summary>
+    public const string DefaultAssemblyName = "DilGeneratorTests";
+
     /// <summary>Runs the generator and returns the driver, ready to hand to Verify for snapshotting.</summary>
     public static GeneratorDriver RunDriver(string rootNamespace, params ResourceInput[] files) =>
         RunDriver(rootNamespace, null, files);
@@ -25,10 +31,18 @@ static class GeneratorHarness
     /// Runs the generator with an optional project-wide <c>DilAccessibility</c> default
     /// (<paramref name="defaultAccessibility"/>, null = unset).
     /// </summary>
-    public static GeneratorDriver RunDriver(string rootNamespace, string? defaultAccessibility, params ResourceInput[] files)
+    public static GeneratorDriver RunDriver(string rootNamespace, string? defaultAccessibility, params ResourceInput[] files) =>
+        RunDriver(DefaultAssemblyName, rootNamespace, defaultAccessibility, files);
+
+    /// <summary>Runs the generator as if compiling <paramref name="assemblyName"/>.</summary>
+    public static GeneratorDriver RunDriverAs(string assemblyName, string rootNamespace, params ResourceInput[] files) =>
+        RunDriver(assemblyName, rootNamespace, null, files);
+
+    static GeneratorDriver RunDriver(
+        string assemblyName, string rootNamespace, string? defaultAccessibility, ResourceInput[] files)
     {
         var compilation = CSharpCompilation.Create(
-            "DilGeneratorTests",
+            assemblyName,
             syntaxTrees: null,
             references: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
