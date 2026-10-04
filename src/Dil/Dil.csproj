@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- net8.0/net10.0 get System.Text.Json in-box (zero deps); netstandard2.0 pulls it from NuGet. -->
-    <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
+    <!-- net8.0+ get System.Text.Json in-box (zero deps); netstandard2.0 pulls it from NuGet. -->
+    <TargetFrameworks>netstandard2.0;net8.0;net10.0;net11.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
@@ -28,9 +28,9 @@
     <PackageReference Include="Glot" Version="0.2.0" />
   </ItemGroup>
 
-  <!-- System.Text.Json is in-box on net8.0/net10.0; only netstandard2.0 needs the package. -->
+  <!-- System.Text.Json is in-box on net8.0+; only netstandard2.0 needs the package. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="System.Text.Json" Version="10.0.9" />
+    <PackageReference Include="System.Text.Json" Version="10.0.12" />
   </ItemGroup>
 
   <!-- Build the generator and capture its output as an analyzer to pack (not a runtime reference) -->

@@ -17,8 +17,13 @@ namespace Dil;
 /// </summary>
 public static class Loc
 {
-    static readonly Dictionary<string, ResourceSet> Sets = new(StringComparer.Ordinal);
+    static readonly Dictionary<string, ResourceSet> Sets = [with(StringComparer.Ordinal)];
+    // System.Threading.Lock (net9+) is a dedicated, cheaper monitor; `lock` binds to it the same way.
+#if NET9_0_OR_GREATER
+    static readonly System.Threading.Lock Gate = new();
+#else
     static readonly object Gate = new();
+#endif
     static string? _baseDirectory;
     static bool _liveReload = true;
 
@@ -296,7 +301,7 @@ public static class Loc
             }
             else
             {
-                tables[culture] = target = new Dictionary<string, string>(StringComparer.Ordinal);
+                tables[culture] = target = [with(StringComparer.Ordinal)];
             }
 
             TryLoadFile(full, target);
@@ -464,8 +469,8 @@ public static class Loc
     sealed class ResourceSet
     {
         public (string Culture, string Path)[] Manifest = [];
-        public Dictionary<string, Dictionary<string, string>> Tables = new(StringComparer.OrdinalIgnoreCase);
-        public Dictionary<string, string> Default = new(StringComparer.Ordinal);
+        public Dictionary<string, Dictionary<string, string>> Tables = [with(StringComparer.OrdinalIgnoreCase)];
+        public Dictionary<string, string> Default = [with(StringComparer.Ordinal)];
         public bool Loaded;
         public List<FileSystemWatcher>? Watchers;
         public HashSet<string>? WatchedDirs;

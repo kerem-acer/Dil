@@ -6,8 +6,6 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- Required for IDE0005 (unused usings) to run at build time. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- IDE0330: suggests System.Threading.Lock, which doesn't exist on netstandard2.0/net8.0. -->
-    <NoWarn>$(NoWarn);IDE0330</NoWarn>
 
     <!-- Reproducible, lock-file-pinned restore (the CI cache keys off packages.lock.json). -->
     <Deterministic>true</Deterministic>
@@ -31,6 +29,12 @@
        mirroring Glot's own Directory.Build.props. -->
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
     <NoWarn>$(NoWarn);CA1707;CA2012;MA0042;S6966;S2068;S5445;EPC29;IDE0370</NoWarn>
+    <!-- Verify 33+ checks the Open Source Maintenance Fee at build time (SponsorCheck). Dil is an open
+         source project that generates no revenue, so it claims the OpenSource exemption. The claim is
+         time-bounded (at most 12 months out): once the month passes the build fails with SC021, so bump
+         the date. https://github.com/VerifyTests/Verify/blob/main/docs/maintenance-fee.md -->
+    <Verify_SponsorshipExemption>OpenSource</Verify_SponsorshipExemption>
+    <Verify_SponsorshipExemptionUntil>2027-10</Verify_SponsorshipExemptionUntil>
   </PropertyGroup>
 
   <!-- Source Link only for shipping packages. -->
