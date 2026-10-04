@@ -239,6 +239,54 @@ public sealed class GeneratorSnapshotTests
     }
 
     [Test]
+    public Task FolderDoesNotChangeTheNamespaceByDefault()
+    {
+        // Without DilNamespaceFromFolder a set stays in RootNamespace wherever its files live; the folder
+        // only shows up in the manifest path.
+        var driver = GeneratorHarness.RunDriver("MyApp",
+            new ResourceInput(GeneratorHarness.ProjectDir + "Localization/Resources/Strings.json", """{ "hello": "Hello" }"""));
+
+        return Verify(driver);
+    }
+
+    [Test]
+    public Task NamespaceMetadataWinsOverDilNamespace()
+    {
+        // Strings names its namespace on the item (siblings copy it, so both files carry it); Errors has
+        // none, so the project-wide DilNamespace applies. Both beat the folder, even with it opted in.
+        var driver = GeneratorHarness.RunDriverWith("MyApp",
+            new Dictionary<string, string>
+            {
+                ["DilNamespace"] = "MyApp.Localization.Resources",
+                ["DilNamespaceFromFolder"] = "true",
+            },
+            new ResourceInput(GeneratorHarness.ProjectDir + "AgentUserManagement/Strings.json",
+                """{ "hello": "Hello, {name}!" }""", Namespace: "InsuranceUp.Modules.AgentUserManagement.Application.Resources"),
+            new ResourceInput(GeneratorHarness.ProjectDir + "AgentUserManagement/Strings.tr.json",
+                """{ "hello": "Merhaba, {name}!" }""", Namespace: "InsuranceUp.Modules.AgentUserManagement.Application.Resources"),
+            new ResourceInput(GeneratorHarness.ProjectDir + "Localization/Errors.json", """{ "oops": "Oops" }"""));
+
+        return Verify(driver);
+    }
+
+    [Test]
+    public Task NamespaceFromFolderAppendsTheFolderLikeResx()
+    {
+        // RootNamespace plus the file's folder; a file at the project root (or outside it) stays in
+        // RootNamespace, and folder names that aren't identifiers are fixed up the way VS does for resx.
+        var driver = GeneratorHarness.RunDriverWith("MyApp",
+            new Dictionary<string, string> { ["DilNamespaceFromFolder"] = "true" },
+            new ResourceInput(GeneratorHarness.ProjectDir + "Localization/Resources/Strings.json",
+                """{ "greeting": "Hello, {name}!" }"""),
+            new ResourceInput(GeneratorHarness.ProjectDir + "Localization/Resources/Strings.tr.json",
+                """{ "greeting": "Merhaba, {name}!" }"""),
+            new ResourceInput(GeneratorHarness.ProjectDir + "Errors.json", """{ "oops": "Oops" }"""),
+            new ResourceInput(GeneratorHarness.ProjectDir + "My Folder/2nd.Level/class/Odd.json", """{ "note": "Note" }"""));
+
+        return Verify(driver);
+    }
+
+    [Test]
     public Task NeutralFileAccessibilityWinsOverCultureFile()
     {
         // The neutral file owns the set: it stays internal even though the culture file asks for public.

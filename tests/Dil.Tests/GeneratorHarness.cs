@@ -10,10 +10,11 @@ namespace Dil.Tests;
 
 /// <summary>
 /// A resource file fed to the generator: a path, its JSON, whether it is marked DilResource, and
-/// optional per-file Accessibility and DefaultCulture metadata values (null = unset).
+/// optional per-file Accessibility, DefaultCulture and Namespace metadata values (null = unset).
 /// </summary>
 readonly record struct ResourceInput(
-    string Path, string Json, bool DilResource = true, string? Accessibility = null, string? DefaultCulture = null);
+    string Path, string Json, bool DilResource = true, string? Accessibility = null, string? DefaultCulture = null,
+    string? Namespace = null);
 
 /// <summary>Runs <see cref="LocalizationGenerator"/> in isolation via <see cref="CSharpGeneratorDriver"/>.</summary>
 static class GeneratorHarness
@@ -23,6 +24,12 @@ static class GeneratorHarness
     /// manifest path in the generated code.
     /// </summary>
     public const string DefaultAssemblyName = "DilGeneratorTests";
+
+    /// <summary>
+    /// The project folder the generator sees. A resource path under it is project-relative, so its folder
+    /// shows up in the manifest path; a bare file name ("Strings.json") is used as it is.
+    /// </summary>
+    public const string ProjectDir = "/src/MyApp/";
 
     /// <summary>Runs the generator and returns the driver, ready to hand to Verify for snapshotting.</summary>
     public static GeneratorDriver RunDriver(string rootNamespace, params ResourceInput[] files) =>
@@ -47,9 +54,17 @@ static class GeneratorHarness
     public static GeneratorDriver RunDriverAs(string assemblyName, string rootNamespace, params ResourceInput[] files) =>
         Run(assemblyName, rootNamespace, null, null, files);
 
+    /// <summary>
+    /// Runs the generator with extra build properties, named without the <c>build_property.</c> prefix
+    /// (for example <c>DilNamespace</c>).
+    /// </summary>
+    public static GeneratorDriver RunDriverWith(
+        string rootNamespace, IReadOnlyDictionary<string, string> properties, params ResourceInput[] files) =>
+        Run(DefaultAssemblyName, rootNamespace, null, null, files, properties);
+
     static GeneratorDriver Run(
         string assemblyName, string rootNamespace, string? defaultAccessibility, string? defaultCulture,
-        ResourceInput[] files)
+        ResourceInput[] files, IReadOnlyDictionary<string, string>? properties = null)
     {
         var compilation = CSharpCompilation.Create(
             assemblyName,
@@ -65,6 +80,7 @@ static class GeneratorHarness
             rootNamespace,
             defaultAccessibility,
             defaultCulture,
+            properties,
             files.ToDictionary(f => f.Path, f => f));
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
@@ -113,11 +129,13 @@ static class GeneratorHarness
             string rootNamespace,
             string? defaultAccessibility,
             string? defaultCulture,
+            IReadOnlyDictionary<string, string>? properties,
             IReadOnlyDictionary<string, ResourceInput> files)
         {
             var global = new Dictionary<string, string>
             {
                 ["build_property.RootNamespace"] = rootNamespace,
+                ["build_property.ProjectDir"] = ProjectDir,
             };
             if (defaultAccessibility is not null)
             {
@@ -127,6 +145,11 @@ static class GeneratorHarness
             if (defaultCulture is not null)
             {
                 global["build_property.DilDefaultCulture"] = defaultCulture;
+            }
+
+            foreach (var (name, value) in properties ?? new Dictionary<string, string>())
+            {
+                global["build_property." + name] = value;
             }
 
             GlobalOptions = new Options(global);
@@ -151,6 +174,11 @@ static class GeneratorHarness
                 if (meta.DefaultCulture is not null)
                 {
                     map["build_metadata.AdditionalFiles.DefaultCulture"] = meta.DefaultCulture;
+                }
+
+                if (meta.Namespace is not null)
+                {
+                    map["build_metadata.AdditionalFiles.Namespace"] = meta.Namespace;
                 }
             }
 

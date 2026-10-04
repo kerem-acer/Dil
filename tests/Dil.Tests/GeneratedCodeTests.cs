@@ -110,6 +110,42 @@ public sealed class GeneratedCodeTests
     }
 
     [Test]
+    public async Task ClassesInFolderNamespacesCompileAndResolve()
+    {
+        // The namespace moves the class, not its set: doc crefs and the template struct follow the class
+        // into its namespace, and it still reads the file the build copied to Dil/<assembly>/<folder>.
+        var dir = Path.Combine(Path.GetTempPath(), "dil-tests", Guid.NewGuid().ToString("N"));
+        var files = Path.Combine(dir, "Dil", GeneratorHarness.DefaultAssemblyName, "Localization", "Resources");
+        Directory.CreateDirectory(files);
+        File.WriteAllText(Path.Combine(files, "Strings.json"), """{ "greeting": "Hi, {name}!" }""");
+        Loc.LiveReload = false;
+        Loc.Configure(dir);
+
+        // Public, so a missing or unresolvable doc comment on any member would warn.
+        var driver = GeneratorHarness.RunDriverWith("MyApp",
+            new Dictionary<string, string> { ["DilAccessibility"] = "public", ["DilNamespaceFromFolder"] = "true" },
+            new ResourceInput(GeneratorHarness.ProjectDir + "Localization/Resources/Strings.json",
+                """{ "greeting": "Hello, {name}!" }"""),
+            new ResourceInput(GeneratorHarness.ProjectDir + "My Folder/2nd.Level/class/Odd.json", """{ "note": "{x}" }"""));
+        var compilation = GeneratorHarness.CompileGenerated(driver);
+
+        var diagnostics = compilation.GetDiagnostics()
+            .Where(d => d.Severity >= DiagnosticSeverity.Warning)
+            .Select(d => d.ToString())
+            .ToList();
+        await Assert.That(diagnostics).IsEmpty();
+
+        using var pe = new MemoryStream();
+        await Assert.That(compilation.Emit(pe).Success).IsTrue();
+        var assembly = System.Reflection.Assembly.Load(pe.ToArray());
+        await Assert.That(assembly.GetType("MyApp.My_Folder._2nd.Level.class.Odd")).IsNotNull();
+
+        var greeting = assembly.GetType("MyApp.Localization.Resources.Strings+GreetingTemplate", throwOnError: true)!;
+        var render = greeting.GetMethod("Render")!.MakeGenericMethod(typeof(string));
+        await Assert.That(render.Invoke(Activator.CreateInstance(greeting), ["Ada"])).IsEqualTo("Hi, Ada!");
+    }
+
+    [Test]
     public async Task SetWithoutNeutralFileFallsBackToItsDefaultCulture()
     {
         var dir = Path.Combine(Path.GetTempPath(), "dil-tests", Guid.NewGuid().ToString("N"));
