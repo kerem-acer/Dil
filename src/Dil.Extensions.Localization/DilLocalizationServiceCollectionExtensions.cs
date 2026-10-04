@@ -16,8 +16,8 @@ public sealed class DilLocalizationOptions
 
     /// <summary>
     /// Whether Dil re-reads resource files when they change on disk. Maps to <see cref="Loc.LiveReload"/>.
-    /// Leave <see langword="null"/> (the default) to keep the current setting; set <see langword="false"/>
-    /// in production.
+    /// Leave <see langword="null"/> (the default) to keep the current setting, which comes from the app's
+    /// <c>DilLiveReload</c> MSBuild property (on for Debug builds, off otherwise).
     /// </summary>
     public bool? LiveReload { get; set; }
 }
