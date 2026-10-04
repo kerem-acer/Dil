@@ -148,6 +148,17 @@ public sealed class GeneratorSnapshotTests
     }
 
     [Test]
+    public Task TemplateStructNamesNeverRenameKeys()
+    {
+        // The real "greetingTemplate" key keeps its name; greeting's struct is numbered instead
+        // (GreetingTemplate2). Compilation of the same input is covered by GeneratedCodeTests.
+        var driver = GeneratorHarness.RunDriver("MyApp",
+            new ResourceInput("Strings.json", GeneratedCodeTests.ClashingKeys));
+
+        return Verify(driver);
+    }
+
+    [Test]
     public Task NonCultureTrailingSegmentStaysInSetName()
     {
         // "New" is not a real culture, so Order.New.json must be the neutral file of set "Order.New",

@@ -24,10 +24,11 @@ foreach (var (culture, label) in cultures)
 
     Console.WriteLine($"=== {label} ===");
     Console.WriteLine(Strings.AppName);                       // Strings set
-    Console.WriteLine("  " + Strings.Greeting("Ada"));        // placeholder
-    Console.WriteLine("  " + Strings.Inbox(3));               // de lacks this -> neutral fallback
-    Console.WriteLine("  " + Strings.Balance(new Money(1234.5m, "₺"))); // custom type, {amount:Money}
-    Console.WriteLine("  " + Errors.NotFound("config.json")); // Errors set (only en + tr exist)
+    Console.WriteLine("  " + Strings.Greeting.Render("Ada")); // placeholder
+    Console.WriteLine("  " + Strings.Greeting.Template);      // raw template, {name} left in
+    Console.WriteLine("  " + Strings.Inbox.Render(3));        // de lacks this -> neutral fallback
+    Console.WriteLine("  " + Strings.Balance.Render(new Money(1234.5m, "₺"))); // custom type, {amount:Money}
+    Console.WriteLine("  " + Errors.NotFound.Render("config.json")); // Errors set (only en + tr exist)
     Console.WriteLine("  " + Errors.Denied);
     Console.WriteLine();
 }
@@ -40,17 +41,17 @@ var original = File.ReadAllText(stringsPath);
 try
 {
     Console.WriteLine("Live reload:");
-    Console.WriteLine("  before: " + Strings.Greeting("Ada"));
+    Console.WriteLine("  before: " + Strings.Greeting.Render("Ada"));
 
     File.WriteAllText(stringsPath, original.Replace("Hello, {name}!", "Hey there, {name}!"));
 
     // FileSystemWatcher fires asynchronously; poll briefly until the edit is visible.
-    for (var i = 0; i < 50 && !Strings.Greeting("Ada").StartsWith("Hey", StringComparison.Ordinal); i++)
+    for (var i = 0; i < 50 && !Strings.Greeting.Render("Ada").StartsWith("Hey", StringComparison.Ordinal); i++)
     {
         Thread.Sleep(100);
     }
 
-    Console.WriteLine("  after:  " + Strings.Greeting("Ada"));
+    Console.WriteLine("  after:  " + Strings.Greeting.Render("Ada"));
 }
 finally
 {

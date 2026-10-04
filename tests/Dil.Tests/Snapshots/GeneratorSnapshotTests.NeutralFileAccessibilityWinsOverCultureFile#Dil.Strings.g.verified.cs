@@ -17,6 +17,10 @@ namespace MyApp
             });
         }
 
+        static string __Get(string key) => global::Dil.Loc.Get("Strings", key);
+        static string __Format(string key, params (string Name, object? Value)[] args) =>
+            global::Dil.Loc.Format("Strings", key, args);
+
         /// <summary>Hello</summary>
         /// <remarks>Translations:
         /// <list type="bullet">
@@ -30,13 +34,29 @@ namespace MyApp
         /// <item><c>tr</c>: Merhaba, {name}!</item>
         /// </list>
         /// </remarks>
-        public static string Greeting<T1>(T1 name) => global::Dil.Loc.Format("Strings", "greeting", ("name", name));
+        public static GreetingTemplate Greeting => default;
+        /// <summary>The <c>greeting</c> template: <c>Template</c> is the raw value, <c>Render</c> fills in its placeholders.</summary>
+        public readonly struct GreetingTemplate
+        {
+            /// <inheritdoc cref="global::MyApp.Strings.Greeting"/>
+            public string Template => global::MyApp.Strings.__Get("greeting");
+            /// <inheritdoc cref="global::MyApp.Strings.Greeting"/>
+            public string Render<T1>(T1 name) => global::MyApp.Strings.__Format("greeting", ("name", name));
+        }
         /// <summary>You have {count} unread messages</summary>
         /// <remarks>Translations:
         /// <list type="bullet">
         /// <item><c>tr</c>: {count} okunmamış mesajınız var</item>
         /// </list>
         /// </remarks>
-        public static string Inbox<T1>(T1 count) => global::Dil.Loc.Format("Strings", "inbox", ("count", count));
+        public static InboxTemplate Inbox => default;
+        /// <summary>The <c>inbox</c> template: <c>Template</c> is the raw value, <c>Render</c> fills in its placeholders.</summary>
+        public readonly struct InboxTemplate
+        {
+            /// <inheritdoc cref="global::MyApp.Strings.Inbox"/>
+            public string Template => global::MyApp.Strings.__Get("inbox");
+            /// <inheritdoc cref="global::MyApp.Strings.Inbox"/>
+            public string Render<T1>(T1 count) => global::MyApp.Strings.__Format("inbox", ("count", count));
+        }
     }
 }

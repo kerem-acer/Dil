@@ -278,41 +278,86 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         // Seed with the class name so a key that PascalCases to it gets disambiguated (a member with
         // the same name as its type is CS0542).
         var used = new HashSet<string>(StringComparer.Ordinal) { className };
+        var members = new List<(string Key, string Value, string Member, List<(string Raw, string Ident, string? Type)> Placeholders)>();
         foreach (var kv in keys)
         {
-            var member = ToPascal(kv.Key);
-            if (member.Length == 0)
+            var member = Unique(used, ToPascal(kv.Key));
+            if (member.Length > 0)
             {
-                continue;
+                members.Add((kv.Key, kv.Value, member, ExtractPlaceholders(kv.Value)));
             }
+        }
 
-            var baseName = member;
-            var n = 2;
-            while (!used.Add(member))
-            {
-                member = baseName + n++;
-            }
+        // A placeholder key's property returns a nested <Member>Template struct. Struct names are picked
+        // only after every key has its member name, so they never rename a key; a clash numbers the struct.
+        var structNames = members
+            .Where(m => m.Placeholders.Count > 0)
+            .ToDictionary(m => m.Key, m => Unique(used, m.Member + "Template"), StringComparer.Ordinal);
 
-            var keyLiteral = Literal(kv.Key);
-            var placeholders = ExtractPlaceholders(kv.Value);
+        // The structs reach Loc through these, not directly: calling a static method of this class runs its
+        // static constructor (which registers the set), so even a default(...) struct resolves its key.
+        // The "__" prefix can't come out of ToPascal, so they never clash with a key's member.
+        var qualifiedClass = "global::" + ns + "." + className;
+        if (structNames.Count > 0)
+        {
+            sb.AppendLine("        static string __Get(string key) => global::Dil.Loc.Get(" + setLiteral + ", key);");
+            sb.AppendLine("        static string __Format(string key, params (string Name, object? Value)[] args) =>");
+            sb.AppendLine("            global::Dil.Loc.Format(" + setLiteral + ", key, args);");
+            sb.AppendLine();
+        }
 
-            sb.AppendLine("        /// <summary>" + EscapeXml(kv.Value) + "</summary>");
-            EmitTranslationDoc(sb, translations, kv.Key);
+        foreach (var (key, value, member, placeholders) in members)
+        {
+            var keyLiteral = Literal(key);
+
+            sb.AppendLine("        /// <summary>" + EscapeXml(value) + "</summary>");
+            EmitTranslationDoc(sb, translations, key);
             if (placeholders.Count == 0)
             {
                 sb.AppendLine("        public static string " + member +
                               " => global::Dil.Loc.Get(" + setLiteral + ", " + keyLiteral + ");");
+                continue;
             }
-            else
-            {
-                sb.AppendLine("        public static string " + member + Signature(placeholders) +
-                              " => global::Dil.Loc.Format(" + setLiteral + ", " + keyLiteral + ", " + Args(placeholders) + ");");
-            }
+
+            // An empty readonly struct: the property returns it for free (no allocation, no state), and the
+            // JIT inlines Template/Render straight down to the Loc call. Everything is fully qualified because
+            // a placeholder parameter (say {Strings}) would shadow a bare name inside Render.
+            var structName = structNames[key];
+            var docRef = "/// <inheritdoc cref=\"" + qualifiedClass + "." + member + "\"/>";
+            sb.AppendLine("        public static " + structName + " " + member + " => default;");
+            sb.AppendLine("        /// <summary>The <c>" + EscapeXml(key) +
+                          "</c> template: <c>Template</c> is the raw value, <c>Render</c> fills in its placeholders.</summary>");
+            sb.AppendLine("        public readonly struct " + structName);
+            sb.AppendLine("        {");
+            sb.AppendLine("            " + docRef);
+            sb.AppendLine("            public string Template => " + qualifiedClass + ".__Get(" + keyLiteral + ");");
+            sb.AppendLine("            " + docRef);
+            sb.AppendLine("            public string Render" + Signature(placeholders) +
+                          " => " + qualifiedClass + ".__Format(" + keyLiteral + ", " + Args(placeholders) + ");");
+            sb.AppendLine("        }");
         }
 
         sb.AppendLine("    }");
         sb.AppendLine("}");
         return sb.ToString();
+    }
+
+    // Claims `name` in `used`, numbering it (Name2, Name3, …) when it's already taken. Empty stays empty.
+    static string Unique(HashSet<string> used, string name)
+    {
+        if (name.Length == 0)
+        {
+            return name;
+        }
+
+        var candidate = name;
+        var n = 2;
+        while (!used.Add(candidate))
+        {
+            candidate = name + n++;
+        }
+
+        return candidate;
     }
 
     // A bare {name} placeholder becomes its own generic parameter (so int/string/etc. flow without
