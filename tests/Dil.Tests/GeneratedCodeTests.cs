@@ -47,9 +47,10 @@ public sealed class GeneratedCodeTests
     public async Task TemplateAndRenderResolveForTheCurrentCulture()
     {
         var dir = Path.Combine(Path.GetTempPath(), "dil-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
-        File.WriteAllText(Path.Combine(dir, "Greetings.json"), """{ "welcome": "Hello, {name}!" }""");
-        File.WriteAllText(Path.Combine(dir, "Greetings.tr.json"), """{ "welcome": "Merhaba, {name}!" }""");
+        var files = Path.Combine(dir, "Dil", GeneratorHarness.DefaultAssemblyName); // the build copies them here
+        Directory.CreateDirectory(files);
+        File.WriteAllText(Path.Combine(files, "Greetings.json"), """{ "welcome": "Hello, {name}!" }""");
+        File.WriteAllText(Path.Combine(files, "Greetings.tr.json"), """{ "welcome": "Merhaba, {name}!" }""");
         Loc.LiveReload = false;
         Loc.Configure(dir);
 
@@ -76,12 +77,46 @@ public sealed class GeneratedCodeTests
     }
 
     [Test]
+    public async Task SameNamedSetsInDifferentAssembliesStayApart()
+    {
+        // Two libraries, each with Strings.json at its project root, loaded into one app: each class
+        // must keep reading its own file, however many times the other class registers in between.
+        var dir = Path.Combine(Path.GetTempPath(), "dil-tests", Guid.NewGuid().ToString("N"));
+        foreach (var lib in new[] { "LibA", "LibB" })
+        {
+            Directory.CreateDirectory(Path.Combine(dir, "Dil", lib));
+            File.WriteAllText(Path.Combine(dir, "Dil", lib, "Strings.json"), $$"""{ "hello": "from {{lib}}" }""");
+        }
+
+        Loc.LiveReload = false;
+        Loc.Configure(dir);
+
+        var libA = await Load("LibA");
+        var libB = await Load("LibB");
+
+        await Assert.That(libA.GetValue(null)).IsEqualTo("from LibA");
+        await Assert.That(libB.GetValue(null)).IsEqualTo("from LibB");
+        await Assert.That(libA.GetValue(null)).IsEqualTo("from LibA");
+
+        static async Task<System.Reflection.PropertyInfo> Load(string lib)
+        {
+            var driver = GeneratorHarness.RunDriverAs(lib, lib,
+                new ResourceInput("Strings.json", """{ "hello": "unused at runtime" }"""));
+            using var pe = new MemoryStream();
+            await Assert.That(GeneratorHarness.CompileGenerated(driver).Emit(pe).Success).IsTrue();
+            var type = System.Reflection.Assembly.Load(pe.ToArray()).GetType(lib + ".Strings", throwOnError: true)!;
+            return type.GetProperty("Hello")!;
+        }
+    }
+
+    [Test]
     public async Task SetWithoutNeutralFileFallsBackToItsDefaultCulture()
     {
         var dir = Path.Combine(Path.GetTempPath(), "dil-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
-        File.WriteAllText(Path.Combine(dir, "Menu.en.json"), """{ "open": "Open" }""");
-        File.WriteAllText(Path.Combine(dir, "Menu.tr.json"), """{ "open": "Aç" }""");
+        var files = Path.Combine(dir, "Dil", GeneratorHarness.DefaultAssemblyName); // the build copies them here
+        Directory.CreateDirectory(files);
+        File.WriteAllText(Path.Combine(files, "Menu.en.json"), """{ "open": "Open" }""");
+        File.WriteAllText(Path.Combine(files, "Menu.tr.json"), """{ "open": "Aç" }""");
         Loc.LiveReload = false;
         Loc.Configure(dir);
 

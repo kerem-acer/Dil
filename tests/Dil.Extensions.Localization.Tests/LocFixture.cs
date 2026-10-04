@@ -23,8 +23,12 @@ static class LocFixture
     }
 }
 
-/// <summary>Marker type whose simple name ("Strings") is the resource-set key used in the typed tests.</summary>
-public sealed class Strings;
+/// <summary>Marker type standing in for a generated <c>Strings</c> class in the typed tests.</summary>
+public sealed class Strings
+{
+    /// <summary>The set key a generated <c>Strings</c> class in this assembly would register.</summary>
+    public static readonly string Set = typeof(Strings).Assembly.GetName().Name + "/" + nameof(Strings);
+}
 
 /// <summary>Probe flag flipped by <see cref="RegisteringMarker"/>'s static constructor.</summary>
 public static class StaticCtorProbe

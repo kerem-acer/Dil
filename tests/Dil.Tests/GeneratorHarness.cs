@@ -18,6 +18,12 @@ readonly record struct ResourceInput(
 /// <summary>Runs <see cref="LocalizationGenerator"/> in isolation via <see cref="CSharpGeneratorDriver"/>.</summary>
 static class GeneratorHarness
 {
+    /// <summary>
+    /// The assembly the generator runs in unless a test names one; it prefixes every set key and
+    /// manifest path in the generated code.
+    /// </summary>
+    public const string DefaultAssemblyName = "DilGeneratorTests";
+
     /// <summary>Runs the generator and returns the driver, ready to hand to Verify for snapshotting.</summary>
     public static GeneratorDriver RunDriver(string rootNamespace, params ResourceInput[] files) =>
         RunDriver(rootNamespace, null, files);
@@ -34,10 +40,19 @@ static class GeneratorHarness
     /// values (null = unset).
     /// </summary>
     public static GeneratorDriver RunDriver(
-        string rootNamespace, string? defaultAccessibility, string? defaultCulture, params ResourceInput[] files)
+        string rootNamespace, string? defaultAccessibility, string? defaultCulture, params ResourceInput[] files) =>
+        Run(DefaultAssemblyName, rootNamespace, defaultAccessibility, defaultCulture, files);
+
+    /// <summary>Runs the generator as if compiling <paramref name="assemblyName"/>.</summary>
+    public static GeneratorDriver RunDriverAs(string assemblyName, string rootNamespace, params ResourceInput[] files) =>
+        Run(assemblyName, rootNamespace, null, null, files);
+
+    static GeneratorDriver Run(
+        string assemblyName, string rootNamespace, string? defaultAccessibility, string? defaultCulture,
+        ResourceInput[] files)
     {
         var compilation = CSharpCompilation.Create(
-            "DilGeneratorTests",
+            assemblyName,
             syntaxTrees: null,
             references: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));

@@ -10,9 +10,9 @@ namespace MyApp
 
         static Strings()
         {
-            global::Dil.Loc.Register("Strings", new (string, string)[]
+            global::Dil.Loc.Register("DilGeneratorTests/Strings", new (string, string)[]
             {
-                ("", "Strings.json"),
+                ("", "Dil/DilGeneratorTests/Strings.json"),
             });
         }
 

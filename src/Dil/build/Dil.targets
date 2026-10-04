@@ -61,13 +61,18 @@
     Resource files marked with DilResource="true" are AdditionalFiles (so the generator
     can read them). AdditionalFiles are not copied to the output folder, but the runtime
     needs them there, so mirror each one as a copied None item (preserving its relative path).
+    The copy goes under Dil/<assembly name>/, because a referenced library's files land in the
+    app's output too: two libraries that both have a Strings.json would otherwise collide (one
+    silently wins on build, publish fails with NETSDK1152). The Dil/ parent keeps the folder from
+    clashing with an exe's apphost, a file named after the assembly on macOS and Linux. TargetName
+    is the compiled assembly's name, the same one the generator puts in the manifest paths.
   -->
   <Target Name="_DilCopyResources" BeforeTargets="AssignTargetPaths" DependsOnTargets="_DilDiscoverSiblings">
     <ItemGroup>
       <None Include="@(AdditionalFiles)"
             Condition="'%(AdditionalFiles.DilResource)' == 'true'"
             CopyToOutputDirectory="PreserveNewest"
-            Link="%(AdditionalFiles.Identity)" />
+            Link="Dil/$(TargetName)/%(AdditionalFiles.Identity)" />
     </ItemGroup>
   </Target>
 

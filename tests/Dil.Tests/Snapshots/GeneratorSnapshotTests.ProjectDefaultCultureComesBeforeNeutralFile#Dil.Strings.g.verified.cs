@@ -10,10 +10,10 @@ namespace MyApp
 
         static Strings()
         {
-            global::Dil.Loc.Register("Strings", new (string, string)[]
+            global::Dil.Loc.Register("DilGeneratorTests/Strings", new (string, string)[]
             {
-                ("", "Strings.json"),
-                ("en", "Strings.en.json"),
+                ("", "Dil/DilGeneratorTests/Strings.json"),
+                ("en", "Dil/DilGeneratorTests/Strings.en.json"),
             }, "en-US");
         }
 
@@ -23,8 +23,8 @@ namespace MyApp
         /// <item><c>en</c>: Hello</item>
         /// </list>
         /// </remarks>
-        public static string Hello => global::Dil.Loc.Get("Strings", "hello");
+        public static string Hello => global::Dil.Loc.Get("DilGeneratorTests/Strings", "hello");
         /// <summary>Bye (neutral)</summary>
-        public static string Bye => global::Dil.Loc.Get("Strings", "bye");
+        public static string Bye => global::Dil.Loc.Get("DilGeneratorTests/Strings", "bye");
     }
 }

@@ -11,8 +11,9 @@ namespace Dil;
 /// <summary>
 /// Runtime backing the generated resource classes. Each generated class is a <em>resource set</em>
 /// (named after its JSON file's base name) that registers its files via
-/// <see cref="Register(string, ValueTuple{string, string}[], string)"/> and
-/// resolves keys against the ambient <see cref="CultureInfo.CurrentUICulture"/> — exactly like resx,
+/// <see cref="Register(string, ValueTuple{string, string}[], string)"/> under its assembly and class
+/// name (<c>"MyLib/Strings"</c>), so same-named sets in different assemblies stay apart. Lookups
+/// resolve keys against the ambient <see cref="CultureInfo.CurrentUICulture"/> — exactly like resx,
 /// with parent-culture, default-culture and neutral fallback. Sets are independent, so two sets may
 /// share key names.
 /// When <see cref="LiveReload"/> is on, edits to the JSON files are picked up at runtime.

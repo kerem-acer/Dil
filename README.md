@@ -202,8 +202,8 @@ public class HomeController(IStringLocalizer<Strings> loc) // T is your generate
 }
 ```
 
-The set is `typeof(T).Name`, so `IStringLocalizer<Strings>` reads the `Strings.json` group. Note the
-formatting difference: the `IStringLocalizer["key", args]` overload uses **positional** `string.Format`
+`IStringLocalizer<Strings>` reads the `Strings.json` group of the assembly that defines `Strings`. Note
+the formatting difference: the `IStringLocalizer["key", args]` overload uses **positional** `string.Format`
 (`{0}`, `{1:C}`) like resx — so author those values positionally. Dil's **named** `{name}` placeholders
 are for the generated typed members; a named template passed through the indexer is returned unformatted
 (never throws).
@@ -225,6 +225,9 @@ Treat it as an error if you want a hard guarantee that every string is translate
 ## Notes
 
 - Missing keys fall back: `tr-TR` → `tr` → default culture → neutral → the key itself. Fallback is per set.
+- Each assembly's resource files are copied to `Dil/<AssemblyName>/` in the output (keeping their path
+  in the project), and each set is keyed by its assembly and class name. Two libraries can both have a
+  `Strings` set, even at the same path, and an app that references both keeps them apart.
 - Only string values are used; numbers, objects, and arrays are ignored. Comments and trailing commas are tolerated, so `.jsonc` works.
 - **Live reload** — editing a resource file is picked up at runtime. It is on for Debug builds and off otherwise, so a published Release app runs no file watchers. Override the build default with `<DilLiveReload>true|false</DilLiveReload>` in the app project (it reaches the runtime via `runtimeconfig.json`, so the app must reference Dil directly), or at runtime with `Dil.Loc.LiveReload`. All sets share one watcher per folder, and a change reloads only the sets that own the changed file — `appsettings.json` and other JSON files next to them are ignored.
 - `Dil.Loc.Configure(baseDirectory)` overrides where files are loaded from / forces a reload.

@@ -16,11 +16,16 @@ namespace Dil.Extensions.Localization;
 /// </summary>
 public class DilStringLocalizer : IStringLocalizer
 {
-    /// <summary>The Dil resource-set key this localizer reads from (the generated class name).</summary>
+    /// <summary>
+    /// The Dil resource-set key this localizer reads from: the generated class's assembly name and class
+    /// name, e.g. <c>"MyApp/Strings"</c>.
+    /// </summary>
     protected string Set { get; }
 
     /// <summary>Create a localizer over the given Dil resource set.</summary>
-    /// <param name="set">The resource-set key (the generated class name, e.g. <c>"Strings"</c>).</param>
+    /// <param name="set">
+    /// The resource-set key: the generated class's assembly name and class name, e.g. <c>"MyApp/Strings"</c>.
+    /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="set"/> is <see langword="null"/>.</exception>
     public DilStringLocalizer(string set) => Set = set ?? throw new ArgumentNullException(nameof(set));
 
@@ -98,4 +103,7 @@ public class DilStringLocalizer : IStringLocalizer
     }
 
     static bool ResourceNotFound(string name, string value) => string.Equals(value, name, StringComparison.Ordinal);
+
+    // The key a generated class registers its set under: its assembly name, then its class name.
+    internal static string SetOf(Type resources) => resources.Assembly.GetName().Name + "/" + resources.Name;
 }

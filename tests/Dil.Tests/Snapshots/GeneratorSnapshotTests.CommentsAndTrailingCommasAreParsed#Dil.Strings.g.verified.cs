@@ -10,15 +10,15 @@ namespace MyApp
 
         static Strings()
         {
-            global::Dil.Loc.Register("Strings", new (string, string)[]
+            global::Dil.Loc.Register("DilGeneratorTests/Strings", new (string, string)[]
             {
-                ("", "Strings.json"),
+                ("", "Dil/DilGeneratorTests/Strings.json"),
             });
         }
 
         /// <summary>A</summary>
-        public static string A => global::Dil.Loc.Get("Strings", "a");
+        public static string A => global::Dil.Loc.Get("DilGeneratorTests/Strings", "a");
         /// <summary>B</summary>
-        public static string B => global::Dil.Loc.Get("Strings", "b");
+        public static string B => global::Dil.Loc.Get("DilGeneratorTests/Strings", "b");
     }
 }
