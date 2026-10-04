@@ -154,7 +154,7 @@
       "dil.extensions.localization": {
         "type": "Project",
         "dependencies": {
-          "Dil": "[0.1.0, )",
+          "Dil": "[0.2.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[9.0.0, )",
           "Microsoft.Extensions.Localization.Abstractions": "[9.0.0, )"
         }

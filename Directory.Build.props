@@ -35,7 +35,7 @@
 
   <!-- Source Link only for shipping packages. -->
   <ItemGroup Condition="'$(IsPackable)' != 'false'">
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.401" PrivateAssets="All" />
   </ItemGroup>
 
   <!-- The repo-root .globalconfig (Glot's shared analyzer severities) is auto-discovered by the SDK. -->
