@@ -70,7 +70,8 @@ just as well.
 { "hello": "Merhaba", "greeting": "Merhaba, {name}!" }
 ```
 
-Build, then use the generated classes (they land in your project's `RootNamespace`):
+Build, then use the generated classes (they land in your project's `RootNamespace`, unless you
+[pick another namespace](#namespace)):
 
 ```csharp
 using YourRootNamespace;
@@ -102,7 +103,7 @@ Add a type to pin a parameter: `{name:string}` generates `string name`, `{count:
 ```
 
 Any C# type works as a typed parameter — including your own (`{total:Money}` → `Money total`), rendered
-via `IFormattable`/`ToString()`. The type must be resolvable in your `RootNamespace`, or fully-qualified
+via `IFormattable`/`ToString()`. The type must be resolvable in the generated class's namespace, or fully-qualified
 (`{total:global::MyApp.Money}`). The bare `{total}` form is generic, so it accepts any type without that.
 
 ## Sets without a neutral file
@@ -161,8 +162,43 @@ resource with `Accessibility` metadata on the `<DilResource>` item:
 
 A set spans several files (neutral + cultures) but produces one class, so one file decides the set's
 accessibility: the **neutral (cultureless) file**, or without one, the default culture's file. Files
-pulled in automatically take the `Accessibility` and `DefaultCulture` of the file you registered. The
-members themselves stay `public static` — their visibility is already capped by the class.
+pulled in automatically take the `Accessibility`, `DefaultCulture` and `Namespace` of the file you
+registered. The members themselves stay `public static` — their visibility is already capped by the class.
+
+## Namespace
+
+Generated classes go in the project's `RootNamespace`. To put them somewhere else, name the namespace
+project-wide with the `DilNamespace` property, or per set with `Namespace` metadata:
+
+```xml
+<PropertyGroup>
+  <DilNamespace>MyApp.Localization.Resources</DilNamespace>     <!-- project-wide -->
+</PropertyGroup>
+
+<ItemGroup>
+  <DilResource Include="Localization/Resources/Strings.json" Namespace="MyApp.Localization.Resources" /> <!-- per set -->
+</ItemGroup>
+```
+
+Or let the folder decide, like resx does. With `DilNamespaceFromFolder`, a set's namespace is
+`RootNamespace` plus the folder its files are in, so a folder of resx files moves to Dil without changing
+any `using`:
+
+```xml
+<PropertyGroup>
+  <!-- Localization/Resources/Strings.json -> MyApp.Localization.Resources.Strings -->
+  <DilNamespaceFromFolder>true</DilNamespaceFromFolder>
+</PropertyGroup>
+```
+
+The first one that's set wins: `Namespace` on the item, then `DilNamespace`, then the folder (when opted
+in), then `RootNamespace`. A folder name that isn't a valid identifier is fixed up the way Visual Studio
+does it for resx (`My Folder` → `My_Folder`, `2nd` → `_2nd`); an explicit namespace is used as written.
+As with accessibility, the file that owns a set decides its namespace.
+
+The namespace only moves the class. A set is still known by its assembly and class name, so
+`IStringLocalizer<T>` finds it wherever it lands. It also means that two sets with the same file name in
+different folders of one project are still one set, so give them different names.
 
 ## How file selection works
 

@@ -18,6 +18,7 @@ namespace Dil.Generator;
 /// Other JSON files are never read. The base filename is the class name and the trailing dotted segment
 /// is the culture: <c>Strings.json</c> is the neutral set <c>Strings</c>, <c>Strings.tr.json</c> is Turkish.
 /// A set doesn't need a neutral file; without one, its culture files together define its keys.
+/// The class goes in <c>RootNamespace</c>, unless the set names another namespace or derives one from its folder.
 /// </summary>
 [Generator]
 public sealed class LocalizationGenerator : IIncrementalGenerator
@@ -58,11 +59,6 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         // (or its set/culture/path) actually changes.
         var files = infos.Select(static (info, ct) => ParseFile(info, ct)).Collect();
 
-        var rootNamespace = context.AnalyzerConfigOptionsProvider.Select(static (p, _) =>
-            TryGet(p.GlobalOptions, "build_property.RootNamespace", out var ns) && !string.IsNullOrWhiteSpace(ns)
-                ? ns!
-                : "Dil");
-
         var defaultCulture = context.AnalyzerConfigOptionsProvider.Select(static (p, _) =>
             TryGet(p.GlobalOptions, "build_property.DilDefaultCulture", out var culture)
                 ? culture?.Trim() ?? string.Empty
@@ -74,9 +70,8 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         // matches typeof(T).Assembly at runtime and the Dil/$(TargetName) folder Dil.targets copies into.
         var assemblyName = context.CompilationProvider.Select(static (c, _) => c.AssemblyName ?? string.Empty);
 
-        context.RegisterSourceOutput(files.Combine(rootNamespace).Combine(defaultCulture).Combine(assemblyName),
-            static (spc, pair) =>
-                Generate(spc, pair.Left.Left.Left, pair.Left.Left.Right, pair.Left.Right, pair.Right));
+        context.RegisterSourceOutput(files.Combine(defaultCulture).Combine(assemblyName),
+            static (spc, pair) => Generate(spc, pair.Left.Left, pair.Left.Right, pair.Right));
     }
 
     static ResInfo? Identify(AdditionalText file, AnalyzerConfigOptionsProvider provider)
@@ -101,7 +96,57 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         TryGet(opts, "build_metadata.AdditionalFiles.DefaultCulture", out var defaultCulture);
 
         return new ResInfo(file, set, culture, relPath, ResolveAccessibility(opts, provider.GlobalOptions),
-            defaultCulture?.Trim() ?? string.Empty);
+            defaultCulture?.Trim() ?? string.Empty, ResolveNamespace(opts, provider.GlobalOptions, relPath));
+    }
+
+    // Per-resource namespace for the generated class: per-file Namespace metadata wins, else the
+    // project-wide DilNamespace, else (with DilNamespaceFromFolder) RootNamespace plus the file's folder
+    // like resx (Localization/Resources/Strings.json -> MyApp.Localization.Resources), else RootNamespace.
+    // An explicit value is used as written; folder names are made into valid identifiers.
+    static string ResolveNamespace(AnalyzerConfigOptions fileOptions, AnalyzerConfigOptions globalOptions, string relPath)
+    {
+        if ((TryGet(fileOptions, "build_metadata.AdditionalFiles.Namespace", out var ns) &&
+             !string.IsNullOrWhiteSpace(ns)) ||
+            (TryGet(globalOptions, "build_property.DilNamespace", out ns) && !string.IsNullOrWhiteSpace(ns)))
+        {
+            return ns!.Trim();
+        }
+
+        var root = TryGet(globalOptions, "build_property.RootNamespace", out var rootNs) &&
+                   !string.IsNullOrWhiteSpace(rootNs)
+            ? rootNs!
+            : "Dil";
+
+        var slash = relPath.LastIndexOf('/');
+        if (slash <= 0 ||
+            !TryGet(globalOptions, "build_property.DilNamespaceFromFolder", out var fromFolder) ||
+            !string.Equals(fromFolder?.Trim(), "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return root;
+        }
+
+        var folders = relPath.Substring(0, slash)
+            .Split(['/', '.'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(FolderIdentifier);
+        return string.Join(".", new[] { root }.Concat(folders));
+    }
+
+    // A folder name as a namespace segment, the way Visual Studio derives one for resx: an invalid
+    // character becomes '_', a leading digit gets a '_' prefix, and a keyword is escaped with '@'.
+    static string FolderIdentifier(string folder)
+    {
+        var sb = new StringBuilder(folder.Length + 1);
+        foreach (var c in folder)
+        {
+            sb.Append(char.IsLetterOrDigit(c) || c == '_' ? c : '_');
+        }
+
+        if (char.IsDigit(sb[0]))
+        {
+            sb.Insert(0, '_');
+        }
+
+        return EscapeKeyword(sb.ToString());
     }
 
     // Per-resource accessibility for the generated class: per-file metadata wins, else the
@@ -142,11 +187,11 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         var text = info.File.GetText(ct)?.ToString() ?? string.Empty;
         var entries = FlatJson.Parse(text);
         return new ResFile(info.Set, info.Culture, info.RelPath, info.File.Path, info.Accessibility, info.DefaultCulture,
-            new EquatableArray<KeyValuePair<string, string>>(entries.ToArray()));
+            info.Namespace, new EquatableArray<KeyValuePair<string, string>>(entries.ToArray()));
     }
 
     static void Generate(
-        SourceProductionContext spc, ImmutableArray<ResFile> files, string ns, string defaultCulture, string assembly)
+        SourceProductionContext spc, ImmutableArray<ResFile> files, string defaultCulture, string assembly)
     {
         if (files.IsDefaultOrEmpty)
         {
@@ -156,12 +201,12 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         // One generated class per resource set (grouped by base filename).
         foreach (var set in files.GroupBy(f => f.Set, StringComparer.Ordinal))
         {
-            EmitSet(spc, ns, assembly, set.Key, set.ToList(), defaultCulture);
+            EmitSet(spc, assembly, set.Key, set.ToList(), defaultCulture);
         }
     }
 
     static void EmitSet(
-        SourceProductionContext spc, string ns, string assembly, string setName, List<ResFile> files,
+        SourceProductionContext spc, string assembly, string setName, List<ResFile> files,
         string projectDefaultCulture)
     {
         var className = ToPascal(setName);
@@ -264,8 +309,8 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
             }
         }
 
-        // One class per set, but a set spans several files; one of them owns it and its accessibility
-        // decides: the neutral file, else the default culture's file, else the first file.
+        // One class per set, but a set spans several files; one of them owns it and its accessibility and
+        // namespace decide: the neutral file, else the default culture's file, else the first file.
         var owner = files.FirstOrDefault(f => f.Culture.Length == 0)
                     ?? defaultChain
                         .Select(c => files.FirstOrDefault(f => string.Equals(f.Culture, c, StringComparison.OrdinalIgnoreCase)))
@@ -278,8 +323,8 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
             .ToList();
         spc.AddSource("Dil." + className + ".g.cs",
             SourceText.From(
-                Emit(ns, className, Scoped(assembly, className), owner.Accessibility, defaultCulture, keys, manifest,
-                    translations),
+                Emit(owner.Namespace, className, Scoped(assembly, className), owner.Accessibility, defaultCulture, keys,
+                    manifest, translations),
                 Encoding.UTF8));
     }
 
@@ -631,7 +676,8 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
             .Replace("\r", " ").Replace("\n", " ");
 
     readonly record struct ResInfo(
-        AdditionalText File, string Set, string Culture, string RelPath, string Accessibility, string DefaultCulture);
+        AdditionalText File, string Set, string Culture, string RelPath, string Accessibility, string DefaultCulture,
+        string Namespace);
 
     sealed record ResFile(
         string Set,
@@ -640,6 +686,7 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         string Path,
         string Accessibility,
         string DefaultCulture,
+        string Namespace,
         EquatableArray<KeyValuePair<string, string>> Entries);
 
     static readonly HashSet<string> CsharpKeywords =
