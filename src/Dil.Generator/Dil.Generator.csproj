@@ -17,10 +17,12 @@
     <!-- Deliberately NOT the latest: this is the minimum compiler the generator runs on. 4.8 is what
          the .NET 8 SDK / VS 17.8 ship; a newer reference makes older compilers skip the generator. -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
-    <!-- Compile-time only: System.Text.Json ships in the shared framework of the Roslyn
-         compiler host (csc runs on .NET Core 3.0+), so it resolves at generation time
-         without bundling. PrivateAssets="all" keeps it out of the analyzer package. -->
-    <PackageReference Include="System.Text.Json" Version="10.0.12" PrivateAssets="all" />
+    <!-- Compile-time only: System.Text.Json is resolved from the compiler host's shared framework at
+         generation time, never bundled (PrivateAssets="all" keeps it out of the analyzer package).
+         So this must NOT be the latest: it's the version the oldest supported host ships. A .NET 8
+         SDK compiler only has System.Text.Json 8.0, and referencing a newer assembly version makes the
+         generator fail to load there (CS8785, FileNotFoundException), silently generating nothing. -->
+    <PackageReference Include="System.Text.Json" Version="8.0.6" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>
