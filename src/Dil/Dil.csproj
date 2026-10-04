@@ -23,6 +23,11 @@
     <NoWarn>$(NoWarn);NU5128</NoWarn>
   </PropertyGroup>
 
+  <!-- The tests drive the live-reload watcher bookkeeping through internal hooks. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dil.Tests" />
+  </ItemGroup>
+
   <!-- Glot's pooled TextBuilder backs allocation-light placeholder substitution. -->
   <ItemGroup>
     <PackageReference Include="Glot" Version="0.2.0" />

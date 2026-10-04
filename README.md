@@ -29,7 +29,7 @@ and no cross-platform CLI regeneration. Dil keeps the *one good part* of resx �
 - **Source generator** — the typed classes are regenerated on every `dotnet build`, on any OS. Nothing checked in.
 - **Many resource sets** — one generated class per file group (`Strings`, `Errors`, …), each independent.
 - **Generic, formattable params** — `{placeholder}` values are generic (`Greeting.Render<T>(T name)`), so `int`/`string`/etc. flow without `object?`, and `IFormattable` values render in the current culture.
-- **Live reload** — edits to the JSON files are picked up at runtime (on by default; toggle with `Dil.Loc.LiveReload`).
+- **Live reload** — edits to the JSON files are picked up at runtime (on in Debug builds; toggle with `Dil.Loc.LiveReload`).
 - **Translations in IntelliSense** — every member's doc comment lists all its translations.
 - **Lean runtime** — multi-targets `netstandard2.0`, `net8.0`, `net10.0`, and `net11.0`; parses JSON with `System.Text.Json` (in-box on modern .NET) and assembles formatted strings with [Glot](https://github.com/kerem-acer/Glot)'s pooled `TextBuilder`.
 - **Ambient culture** — works exactly like resx: set `CultureInfo.CurrentUICulture`, read `Strings.X`.
@@ -226,7 +226,7 @@ Treat it as an error if you want a hard guarantee that every string is translate
 
 - Missing keys fall back: `tr-TR` → `tr` → default culture → neutral → the key itself. Fallback is per set.
 - Only string values are used; numbers, objects, and arrays are ignored. Comments and trailing commas are tolerated, so `.jsonc` works.
-- **Live reload** is on by default — editing a resource file is picked up at runtime via a `FileSystemWatcher`. Turn it off with `Dil.Loc.LiveReload = false` (e.g. in production).
+- **Live reload** — editing a resource file is picked up at runtime. It is on for Debug builds and off otherwise, so a published Release app runs no file watchers. Override the build default with `<DilLiveReload>true|false</DilLiveReload>` in the app project (it reaches the runtime via `runtimeconfig.json`, so the app must reference Dil directly), or at runtime with `Dil.Loc.LiveReload`. All sets share one watcher per folder, and a change reloads only the sets that own the changed file — `appsettings.json` and other JSON files next to them are ignored.
 - `Dil.Loc.Configure(baseDirectory)` overrides where files are loaded from / forces a reload.
 - Placeholder values are formatted with the current culture via `IFormattable`; a `null` value becomes the empty string.
 

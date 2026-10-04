@@ -1,6 +1,20 @@
 <Project>
 
   <!--
+    Live reload (re-reading resource files when they change on disk) is a development convenience, so
+    it defaults to on for Debug builds only. Set <DilLiveReload>true|false</DilLiveReload> to override.
+    The value reaches the runtime as the "Dil.LiveReload" runtimeconfig.json switch, which seeds
+    Loc.LiveReload; it only takes effect in the app (executable) project.
+  -->
+  <PropertyGroup>
+    <DilLiveReload Condition="'$(DilLiveReload)' == '' and '$(Configuration)' == 'Debug'">true</DilLiveReload>
+    <DilLiveReload Condition="'$(DilLiveReload)' == ''">false</DilLiveReload>
+  </PropertyGroup>
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="Dil.LiveReload" Value="$(DilLiveReload)" />
+  </ItemGroup>
+
+  <!--
     The dedicated <DilResource Include="..." /> item is the way to register a resource. A source
     generator can only read AdditionalFiles, so project each one into an AdditionalFiles item here
     (at import time, so they are present when the generator runs). Referencing @(DilResource)

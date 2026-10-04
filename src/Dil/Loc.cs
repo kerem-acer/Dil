@@ -15,11 +15,18 @@ namespace Dil;
 /// resolves keys against the ambient <see cref="CultureInfo.CurrentUICulture"/> — exactly like resx,
 /// with parent-culture, default-culture and neutral fallback. Sets are independent, so two sets may
 /// share key names.
-/// When <see cref="LiveReload"/> is on (the default) edits to the JSON files are picked up at runtime.
+/// When <see cref="LiveReload"/> is on, edits to the JSON files are picked up at runtime.
 /// </summary>
 public static class Loc
 {
+    // runtimeconfig.json switch written from the DilLiveReload MSBuild property (see build/Dil.targets).
+    const string LiveReloadSwitch = "Dil.LiveReload";
+
     static readonly Dictionary<string, ResourceSet> Sets = [with(StringComparer.Ordinal)];
+    // One watcher per folder, shared by every set with files in it. Keyed by full directory path; Ordinal
+    // so a case-sensitive file system never folds two folders into one (on a case-insensitive one the
+    // worst case is a duplicate watcher).
+    static readonly Dictionary<string, FolderWatch> Watches = [with(StringComparer.Ordinal)];
     // System.Threading.Lock (net9+) is a dedicated, cheaper monitor; `lock` binds to it the same way.
 #if NET9_0_OR_GREATER
     static readonly System.Threading.Lock Gate = new();
@@ -27,11 +34,12 @@ public static class Loc
     static readonly object Gate = new();
 #endif
     static string? _baseDirectory;
-    static bool _liveReload = true;
+    static bool _liveReload = AppContext.TryGetSwitch(LiveReloadSwitch, out var enabled) && enabled;
 
     /// <summary>
-    /// Re-read resource files when they change on disk. On by default. Setting it invalidates every
-    /// loaded set so the new mode takes effect on the next access.
+    /// Re-read resource files when they change on disk. The default comes from the app's
+    /// <c>DilLiveReload</c> MSBuild property (on for Debug builds, off otherwise) and is off when that is
+    /// not set. Setting it invalidates every loaded set so the new mode takes effect on the next access.
     /// </summary>
     public static bool LiveReload
     {
@@ -55,7 +63,7 @@ public static class Loc
                 foreach (var rs in Sets.Values)
                 {
                     rs.Loaded = false;
-                    DisposeWatchers(rs);
+                    Unwatch(rs);
                 }
             }
         }
@@ -87,7 +95,7 @@ public static class Loc
             rs.Manifest = manifest ?? [];
             rs.DefaultChain = defaultChain;
             rs.Loaded = false;
-            DisposeWatchers(rs);
+            Unwatch(rs);
         }
     }
 
@@ -100,7 +108,7 @@ public static class Loc
             foreach (var rs in Sets.Values)
             {
                 rs.Loaded = false;
-                DisposeWatchers(rs);
+                Unwatch(rs);
             }
         }
     }
@@ -332,16 +340,12 @@ public static class Loc
         var baseDir = _baseDirectory ?? AppContext.BaseDirectory;
         var tables = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
         var def = new Dictionary<string, string>(StringComparer.Ordinal);
-        var dirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var files = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var (culture, relPath) in rs.Manifest)
         {
-            var full = Path.Combine(baseDir, relPath.Replace('/', Path.DirectorySeparatorChar));
-            var dir = Path.GetDirectoryName(full);
-            if (!string.IsNullOrEmpty(dir))
-            {
-                dirs.Add(dir);
-            }
+            var full = Path.GetFullPath(Path.Combine(baseDir, relPath.Replace('/', Path.DirectorySeparatorChar)));
+            files.Add(full);
 
             if (!File.Exists(full))
             {
@@ -367,75 +371,160 @@ public static class Loc
 
         rs.Tables = tables;
         rs.Default = def;
-        ReconcileWatchers(rs, dirs);
+        Watch(rs, files);
         rs.Loaded = true;
     }
 
-    // Watch every directory backing the set; recreate only when the directory set actually changes
-    // (avoids churning OS handles on each reload) and disabled entirely when live reload is off.
-    static void ReconcileWatchers(ResourceSet rs, HashSet<string> dirs)
+    // Subscribe the set to every file backing it (existing or not, so a culture file created later is
+    // seen). Re-subscribe only when the file list actually changes, and not at all when live reload is off.
+    static void Watch(ResourceSet rs, HashSet<string> files)
     {
         if (!_liveReload)
         {
             return;
         }
 
-        if (rs.Watchers != null && rs.WatchedDirs != null && rs.WatchedDirs.SetEquals(dirs))
+        if (rs.WatchedFiles != null && rs.WatchedFiles.SetEquals(files))
         {
             return;
         }
 
-        DisposeWatchers(rs);
-        var watchers = new List<FileSystemWatcher>();
-        foreach (var dir in dirs)
+        Unwatch(rs);
+        foreach (var file in files)
         {
-            if (!Directory.Exists(dir))
+            var dir = Path.GetDirectoryName(file);
+            if (string.IsNullOrEmpty(dir))
             {
                 continue;
             }
 
-            var watcher = new FileSystemWatcher(dir, "*.json")
+            if (!Watches.TryGetValue(dir, out var watch))
             {
-                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size,
-            };
-            watcher.Changed += OnChanged;
-            watcher.Created += OnChanged;
-            watcher.Deleted += OnChanged;
-            watcher.Renamed += (_, _) => Invalidate(rs);
-            // Buffer overflow / internal errors lose events; force a full reload so we recover.
-            watcher.Error += (_, _) => Invalidate(rs);
-            watcher.EnableRaisingEvents = true;
-            watchers.Add(watcher);
+                if (!Directory.Exists(dir))
+                {
+                    continue;
+                }
+
+                Watches[dir] = watch = new FolderWatch(StartWatcher(dir));
+            }
+
+            var name = Path.GetFileName(file);
+            if (!watch.Files.TryGetValue(name, out var sets))
+            {
+                watch.Files[name] = sets = [];
+            }
+
+            sets.Add(rs);
         }
 
-        void OnChanged(object? sender, FileSystemEventArgs e) => Invalidate(rs);
-
-        rs.Watchers = watchers;
-        rs.WatchedDirs = new HashSet<string>(dirs, StringComparer.OrdinalIgnoreCase);
+        rs.WatchedFiles = files;
     }
 
-    static void Invalidate(ResourceSet rs)
+    static FileSystemWatcher StartWatcher(string dir)
+    {
+        var watcher = new FileSystemWatcher(dir, "*.json")
+        {
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size,
+        };
+        watcher.Changed += (_, e) => OnFileEvent(dir, e.Name);
+        watcher.Created += (_, e) => OnFileEvent(dir, e.Name);
+        watcher.Deleted += (_, e) => OnFileEvent(dir, e.Name);
+        watcher.Renamed += (_, e) =>
+        {
+            OnFileEvent(dir, e.OldName);
+            OnFileEvent(dir, e.Name);
+        };
+        // Buffer overflow / internal errors lose events; reload every set in the folder so we recover.
+        watcher.Error += (_, _) => OnFileEvent(dir, null);
+        watcher.EnableRaisingEvents = true;
+        return watcher;
+    }
+
+    /// <summary>
+    /// Invalidate the sets backed by <paramref name="name"/> in <paramref name="dir"/>; every other JSON
+    /// file there (appsettings.json, *.deps.json, other sets' files) is ignored. A <see langword="null"/>
+    /// name invalidates every set watching the folder.
+    /// </summary>
+    internal static void OnFileEvent(string dir, string? name)
     {
         lock (Gate)
         {
-            rs.Loaded = false;
+            if (!Watches.TryGetValue(dir, out var watch))
+            {
+                return;
+            }
+
+            if (name is null)
+            {
+                foreach (var sets in watch.Files.Values)
+                {
+                    foreach (var rs in sets)
+                    {
+                        rs.Loaded = false;
+                    }
+                }
+            }
+            else if (watch.Files.TryGetValue(name, out var sets))
+            {
+                foreach (var rs in sets)
+                {
+                    rs.Loaded = false;
+                }
+            }
         }
     }
 
-    static void DisposeWatchers(ResourceSet rs)
+    // Drop the set's subscriptions, disposing a folder's watcher once no set uses it.
+    static void Unwatch(ResourceSet rs)
     {
-        if (rs.Watchers is null)
+        if (rs.WatchedFiles is null)
         {
             return;
         }
 
-        foreach (var watcher in rs.Watchers)
+        foreach (var file in rs.WatchedFiles)
         {
-            watcher.Dispose();
+            var dir = Path.GetDirectoryName(file);
+            if (string.IsNullOrEmpty(dir) || !Watches.TryGetValue(dir, out var watch))
+            {
+                continue;
+            }
+
+            var name = Path.GetFileName(file);
+            if (watch.Files.TryGetValue(name, out var sets) && sets.Remove(rs) && sets.Count == 0)
+            {
+                watch.Files.Remove(name);
+            }
+
+            if (watch.Files.Count == 0)
+            {
+                watch.Watcher.Dispose();
+                Watches.Remove(dir);
+            }
         }
 
-        rs.Watchers = null;
-        rs.WatchedDirs = null;
+        rs.WatchedFiles = null;
+    }
+
+    /// <summary>Number of live folder watchers. For tests.</summary>
+    internal static int WatcherCount
+    {
+        get
+        {
+            lock (Gate)
+            {
+                return Watches.Count;
+            }
+        }
+    }
+
+    /// <summary>Whether <paramref name="set"/> holds loaded tables (not yet invalidated). For tests.</summary>
+    internal static bool IsLoaded(string set)
+    {
+        lock (Gate)
+        {
+            return Sets.TryGetValue(set, out var rs) && rs.Loaded;
+        }
     }
 
     /// <summary>
@@ -531,7 +620,14 @@ public static class Loc
         public Dictionary<string, Dictionary<string, string>> Tables = [with(StringComparer.OrdinalIgnoreCase)];
         public Dictionary<string, string> Default = [with(StringComparer.Ordinal)];
         public bool Loaded;
-        public List<FileSystemWatcher>? Watchers;
-        public HashSet<string>? WatchedDirs;
+        public HashSet<string>? WatchedFiles;
+    }
+
+    sealed class FolderWatch(FileSystemWatcher watcher)
+    {
+        public readonly FileSystemWatcher Watcher = watcher;
+        // File name -> the sets it backs. Names compare case-insensitively: on a case-sensitive file system
+        // the worst case is an extra reload, never a missed one.
+        public readonly Dictionary<string, HashSet<ResourceSet>> Files = [with(StringComparer.OrdinalIgnoreCase)];
     }
 }
