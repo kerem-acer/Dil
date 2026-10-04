@@ -16,7 +16,19 @@ namespace MyApp
             });
         }
 
+        static string __Get(string key) => global::Dil.Loc.Get("Strings", key);
+        static string __Format(string key, params (string Name, object? Value)[] args) =>
+            global::Dil.Loc.Format("Strings", key, args);
+
         /// <summary>hi {x:int; evil()}</summary>
-        public static string M<T1>(T1 x) => global::Dil.Loc.Format("Strings", "m", ("x", x));
+        public static MTemplate M => default;
+        /// <summary>The <c>m</c> template: <c>Template</c> is the raw value, <c>Render</c> fills in its placeholders.</summary>
+        public readonly struct MTemplate
+        {
+            /// <inheritdoc cref="global::MyApp.Strings.M"/>
+            public string Template => global::MyApp.Strings.__Get("m");
+            /// <inheritdoc cref="global::MyApp.Strings.M"/>
+            public string Render<T1>(T1 x) => global::MyApp.Strings.__Format("m", ("x", x));
+        }
     }
 }

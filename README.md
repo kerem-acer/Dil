@@ -9,9 +9,10 @@ No resx. No `.Designer.cs`. No stringly-typed lookups. No IDE dependency. Just `
 
 ```csharp
 CultureInfo.CurrentUICulture = new("tr");
-Strings.Hello;             // "Merhaba"
-Strings.Greeting("Ada");   // "Merhaba, Ada!"
-Strings.Inbox(3);          // "3 okunmamış mesajınız var"
+Strings.Hello;                  // "Merhaba"
+Strings.Greeting.Render("Ada"); // "Merhaba, Ada!"
+Strings.Greeting.Template;      // "Merhaba, {name}!"
+Strings.Inbox.Render(3);        // "3 okunmamış mesajınız var"
 ```
 
 The class name comes from the JSON file's base name, resx-style: `Strings.json` → `Strings`,
@@ -27,7 +28,7 @@ and no cross-platform CLI regeneration. Dil keeps the *one good part* of resx �
 - **JSON, not XML** — readable, diffable, translator-friendly.
 - **Source generator** — the typed classes are regenerated on every `dotnet build`, on any OS. Nothing checked in.
 - **Many resource sets** — one generated class per file group (`Strings`, `Errors`, …), each independent.
-- **Generic, formattable params** — `{placeholder}` values are generic (`Greeting<T>(T name)`), so `int`/`string`/etc. flow without `object?`, and `IFormattable` values render in the current culture.
+- **Generic, formattable params** — `{placeholder}` values are generic (`Greeting.Render<T>(T name)`), so `int`/`string`/etc. flow without `object?`, and `IFormattable` values render in the current culture.
 - **Live reload** — edits to the JSON files are picked up at runtime (on by default; toggle with `Dil.Loc.LiveReload`).
 - **Translations in IntelliSense** — every member's doc comment lists all its translations.
 - **Lean runtime** — multi-targets `netstandard2.0`, `net8.0`, and `net10.0`; parses JSON with `System.Text.Json` (in-box on modern .NET) and assembles formatted strings with [Glot](https://github.com/kerem-acer/Glot)'s pooled `TextBuilder`.
@@ -73,17 +74,29 @@ Build, then use the generated classes (they land in your project's `RootNamespac
 using YourRootNamespace;
 
 Console.WriteLine(Strings.Hello);
-Console.WriteLine(Strings.Greeting("Ada"));   // generic param: Greeting<T>(T name)
-Console.WriteLine(Errors.NotFound("a.json")); // a separate set
+Console.WriteLine(Strings.Greeting.Render("Ada"));   // generic param: Render<T>(T name)
+Console.WriteLine(Strings.Greeting.Template);        // "Hello, {name}!" — the raw template
+Console.WriteLine(Errors.NotFound.Render("a.json")); // a separate set
 ```
 
-`{placeholder}` tokens in a value become generic method parameters; plain values become properties.
+Plain values become `string` properties. A value with `{placeholder}` tokens becomes a property returning
+a small generated struct with two members:
+
+- `Render(...)` fills in the placeholders. Each token becomes a generic method parameter.
+- `Template` returns the raw value for the current UI culture with the tokens left in, for callers that
+  do their own formatting (for example, an error model that returns both the template and the message).
+
+Both resolve through the same culture fallback as everything else. The struct is an empty
+`readonly struct`, so the property allocates nothing and `Strings.Greeting.Render(...)` costs the same
+as a plain method call. Its type is named `<Member>Template` (e.g. `Strings.GreetingTemplate`); if that
+clashes with a key's member, the key keeps its name and the struct gets a number (`GreetingTemplate2`).
+
 Add a type to pin a parameter: `{name:string}` generates `string name`, `{count:int}` generates
-`int count`. Bare and typed placeholders can mix in one string (`Items<T>(int count, T thing)`).
+`int count`. Bare and typed placeholders can mix in one string (`Items.Render<T>(int count, T thing)`).
 
 ```jsonc
 { "greet": "Hello, {name:string}!", "items": "{count:int} items" }
-// -> string Greet(string name);  string Items(int count);
+// -> Greet.Render(string name);  Items.Render(int count);
 ```
 
 Any C# type works as a typed parameter — including your own (`{total:Money}` → `Money total`), rendered
@@ -133,7 +146,7 @@ Dil reads the ambient `CultureInfo.CurrentUICulture` — set it however your app
 
 ## IStringLocalizer interop (optional)
 
-Prefer the typed `Strings.Greeting("Ada")` API. But when a framework or library expects the
+Prefer the typed `Strings.Greeting.Render("Ada")` API. But when a framework or library expects the
 `Microsoft.Extensions.Localization` abstractions, install the optional **`Dil.Extensions.Localization`**
 package — it adapts a Dil resource set to `IStringLocalizer`, `IStringLocalizer<T>`, and
 `IStringLocalizerFactory`, with a DI extension:

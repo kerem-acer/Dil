@@ -16,9 +16,29 @@ namespace MyApp
             });
         }
 
+        static string __Get(string key) => global::Dil.Loc.Get("Strings", key);
+        static string __Format(string key, params (string Name, object? Value)[] args) =>
+            global::Dil.Loc.Format("Strings", key, args);
+
         /// <summary>Hello, {name:string}!</summary>
-        public static string Greet(string name) => global::Dil.Loc.Format("Strings", "greet", ("name", name));
+        public static GreetTemplate Greet => default;
+        /// <summary>The <c>greet</c> template: <c>Template</c> is the raw value, <c>Render</c> fills in its placeholders.</summary>
+        public readonly struct GreetTemplate
+        {
+            /// <inheritdoc cref="global::MyApp.Strings.Greet"/>
+            public string Template => global::MyApp.Strings.__Get("greet");
+            /// <inheritdoc cref="global::MyApp.Strings.Greet"/>
+            public string Render(string name) => global::MyApp.Strings.__Format("greet", ("name", name));
+        }
         /// <summary>{a:int} then {b}</summary>
-        public static string Mix<T1>(int a, T1 b) => global::Dil.Loc.Format("Strings", "mix", ("a", a), ("b", b));
+        public static MixTemplate Mix => default;
+        /// <summary>The <c>mix</c> template: <c>Template</c> is the raw value, <c>Render</c> fills in its placeholders.</summary>
+        public readonly struct MixTemplate
+        {
+            /// <inheritdoc cref="global::MyApp.Strings.Mix"/>
+            public string Template => global::MyApp.Strings.__Get("mix");
+            /// <inheritdoc cref="global::MyApp.Strings.Mix"/>
+            public string Render<T1>(int a, T1 b) => global::MyApp.Strings.__Format("mix", ("a", a), ("b", b));
+        }
     }
 }

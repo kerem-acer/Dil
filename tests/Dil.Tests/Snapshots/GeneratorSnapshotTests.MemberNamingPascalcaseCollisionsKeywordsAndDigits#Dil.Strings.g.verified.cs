@@ -16,6 +16,10 @@ namespace MyApp
             });
         }
 
+        static string __Get(string key) => global::Dil.Loc.Get("Strings", key);
+        static string __Format(string key, params (string Name, object? Value)[] args) =>
+            global::Dil.Loc.Format("Strings", key, args);
+
         /// <summary>First</summary>
         public static string UserFirstName => global::Dil.Loc.Get("Strings", "user.first-name");
         /// <summary>Save</summary>
@@ -27,8 +31,24 @@ namespace MyApp
         /// <summary>first</summary>
         public static string _1st => global::Dil.Loc.Get("Strings", "1st");
         /// <summary>in {class} for {event}</summary>
-        public static string Msg<T1, T2>(T1 @class, T2 @event) => global::Dil.Loc.Format("Strings", "msg", ("class", @class), ("event", @event));
+        public static MsgTemplate Msg => default;
+        /// <summary>The <c>msg</c> template: <c>Template</c> is the raw value, <c>Render</c> fills in its placeholders.</summary>
+        public readonly struct MsgTemplate
+        {
+            /// <inheritdoc cref="global::MyApp.Strings.Msg"/>
+            public string Template => global::MyApp.Strings.__Get("msg");
+            /// <inheritdoc cref="global::MyApp.Strings.Msg"/>
+            public string Render<T1, T2>(T1 @class, T2 @event) => global::MyApp.Strings.__Format("msg", ("class", @class), ("event", @event));
+        }
         /// <summary>{x} and {x}</summary>
-        public static string Dup<T1>(T1 x) => global::Dil.Loc.Format("Strings", "dup", ("x", x));
+        public static DupTemplate Dup => default;
+        /// <summary>The <c>dup</c> template: <c>Template</c> is the raw value, <c>Render</c> fills in its placeholders.</summary>
+        public readonly struct DupTemplate
+        {
+            /// <inheritdoc cref="global::MyApp.Strings.Dup"/>
+            public string Template => global::MyApp.Strings.__Get("dup");
+            /// <inheritdoc cref="global::MyApp.Strings.Dup"/>
+            public string Render<T1>(T1 x) => global::MyApp.Strings.__Format("dup", ("x", x));
+        }
     }
 }

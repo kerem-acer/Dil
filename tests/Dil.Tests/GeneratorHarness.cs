@@ -51,6 +51,28 @@ static class GeneratorHarness
         return driver.RunGenerators(compilation);
     }
 
+    /// <summary>
+    /// Compiles the generator's output against the real Dil runtime, with doc comments diagnosed (crefs
+    /// included), so a test can assert the generated source builds cleanly and then load and run it.
+    /// </summary>
+    public static CSharpCompilation CompileGenerated(GeneratorDriver driver)
+    {
+        var parseOptions = new CSharpParseOptions(LanguageVersion.Latest, DocumentationMode.Diagnose);
+        var trees = driver.GetRunResult().GeneratedTrees
+            .Select(t => CSharpSyntaxTree.ParseText(t.GetText(), parseOptions, t.FilePath));
+        var runtimeDir = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
+
+        return CSharpCompilation.Create(
+            "DilGenerated" + Guid.NewGuid().ToString("N"),
+            trees,
+            [
+                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+                MetadataReference.CreateFromFile(Path.Combine(runtimeDir, "System.Runtime.dll")),
+                MetadataReference.CreateFromFile(typeof(Loc).Assembly.Location),
+            ],
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+    }
+
     sealed class InMemoryAdditionalText(string path, string text) : AdditionalText
     {
         public override string Path { get; } = path;
