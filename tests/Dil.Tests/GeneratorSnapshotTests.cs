@@ -35,10 +35,39 @@ public sealed class GeneratorSnapshotTests
     }
 
     [Test]
-    public Task OnlyCultureFileReportsDIL002()
+    public Task CultureFilesWithoutNeutralFileGenerateTheSet()
     {
+        // No Strings.json: the keys are the union of the culture files (hello, greeting, bye), each
+        // culture is checked against all of them (DIL001), and a summary comes from the first file
+        // that has the key.
         var driver = GeneratorHarness.RunDriver("MyApp",
-            new ResourceInput("Strings.tr.json", """{ "hello": "Merhaba" }"""));
+            new ResourceInput("Strings.en.json", """{ "hello": "Hello", "greeting": "Hello, {name}!" }"""),
+            new ResourceInput("Strings.tr.json", """{ "hello": "Merhaba", "bye": "Hoşça kal" }"""));
+
+        return Verify(driver);
+    }
+
+    [Test]
+    public Task DefaultCultureFileOwnsASetWithoutNeutralFile()
+    {
+        // DefaultCulture metadata (tr) wins over the project-wide property (de, which has no file). The
+        // tr file then supplies the key order, the summaries, and the class's accessibility.
+        var driver = GeneratorHarness.RunDriver("MyApp", defaultAccessibility: null, defaultCulture: "de",
+            new ResourceInput("Strings.en.json", """{ "hello": "Hello", "bye": "Goodbye" }"""),
+            new ResourceInput("Strings.tr.json", """{ "bye": "Hoşça kal", "hello": "Merhaba" }""",
+                Accessibility: "public", DefaultCulture: "tr"));
+
+        return Verify(driver);
+    }
+
+    [Test]
+    public Task ProjectDefaultCultureComesBeforeNeutralFile()
+    {
+        // DilDefaultCulture en-US has no file of its own, so its parent en supplies the summaries. The
+        // neutral file still defines the keys and fills in the summary for a key en lacks.
+        var driver = GeneratorHarness.RunDriver("MyApp", defaultAccessibility: null, defaultCulture: "en-US",
+            new ResourceInput("Strings.json", """{ "hello": "Hello (neutral)", "bye": "Bye (neutral)" }"""),
+            new ResourceInput("Strings.en.json", """{ "hello": "Hello" }"""));
 
         return Verify(driver);
     }

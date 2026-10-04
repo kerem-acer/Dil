@@ -1,0 +1,32 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Strings.en.json: (0,0)-(0,0),
+      Message: Culture 'en' is missing a translation for key 'bye',
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: DIL001,
+        Title: Missing translation,
+        MessageFormat: Culture '{0}' is missing a translation for key '{1}',
+        Category: Dil,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: Strings.tr.json: (0,0)-(0,0),
+      Message: Culture 'tr' is missing a translation for key 'greeting',
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: DIL001,
+        Title: Missing translation,
+        MessageFormat: Culture '{0}' is missing a translation for key '{1}',
+        Category: Dil,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}
