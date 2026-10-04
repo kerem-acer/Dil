@@ -13,7 +13,10 @@ static class RuntimeFixture
 
     public readonly record struct Res(string Name, string Culture, string Json, bool WriteBom = false);
 
-    public static string Setup(params Res[] files)
+    public static string Setup(params Res[] files) => Setup(null, files);
+
+    /// <summary>Like <see cref="Setup(Res[])"/>, registering the set with a default culture.</summary>
+    public static string Setup(string? defaultCulture, params Res[] files)
     {
         var dir = Path.Combine(Path.GetTempPath(), "dil-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
@@ -27,7 +30,7 @@ static class RuntimeFixture
         }
 
         Loc.LiveReload = false; // deterministic by default; live-reload tests opt back in
-        Loc.Register(Set, manifest);
+        Loc.Register(Set, manifest, defaultCulture);
         Loc.Configure(dir);
         return dir;
     }

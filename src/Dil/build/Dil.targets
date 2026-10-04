@@ -14,26 +14,32 @@
   </ItemGroup>
 
   <!--
-    Registering the neutral file is enough: each registered file's on-disk culture siblings
-    (<dir>/<stem>.*.json — e.g. Strings.tr.json next to Strings.json) are pulled in automatically.
-    This runs in a target because a wildcard only globs inside a target (at static evaluation it
-    stays literal). It hooks in before AssignTargetPaths (so the copy step below sees the siblings)
-    and before the analyzer config / compile (so the generator sees them). A transform can't glob,
-    but a wildcard inside a property string does, so we build the sibling patterns into a property
-    first. Siblings only need DilResource="true"; their Accessibility is ignored because the neutral
-    file decides a set's accessibility.
+    Registering any one file of a set is enough: the rest of the set on disk (<dir>/<stem>.json and
+    <dir>/<stem>.*.json — e.g. Strings.json and Strings.tr.json next to Strings.en.json) is pulled in
+    automatically. AssignCulture (the task resx uses) drops the culture from each registered name
+    first, so Strings.en.json searches for Strings.*.json rather than Strings.en.*.json; a trailing
+    segment that isn't a culture (Order.New.json) stays part of the name. This runs in a target
+    because a wildcard only globs inside a target (at static evaluation it stays literal). It hooks in
+    before AssignTargetPaths (so the copy step below sees the siblings) and before the analyzer config
+    / compile (so the generator sees them). Siblings copy the registered item's Accessibility and
+    DefaultCulture, so the set's settings don't depend on which of its files was registered.
   -->
   <Target Name="_DilDiscoverSiblings"
           BeforeTargets="AssignTargetPaths;GenerateMSBuildEditorConfigFile;CoreCompile"
           Condition="'@(DilResource)' != ''">
-    <PropertyGroup>
-      <_DilSiblingPatterns>@(DilResource->'%(RelativeDir)%(Filename).*.json')</_DilSiblingPatterns>
-    </PropertyGroup>
+    <AssignCulture Files="@(DilResource)">
+      <Output TaskParameter="CultureNeutralAssignedFiles" ItemName="_DilSetFile" />
+    </AssignCulture>
     <ItemGroup>
-      <_DilSibling Include="$(_DilSiblingPatterns)" />
+      <_DilSibling Include="%(_DilSetFile.RelativeDir)%(_DilSetFile.Filename)%(_DilSetFile.Extension);%(_DilSetFile.RelativeDir)%(_DilSetFile.Filename).*.json"
+                   Accessibility="%(_DilSetFile.Accessibility)"
+                   DefaultCulture="%(_DilSetFile.DefaultCulture)" />
+      <!-- The neutral name is a literal, not a glob, so it is kept even when no such file exists. -->
+      <_DilSibling Remove="@(_DilSibling)" Condition="!Exists('%(FullPath)')" />
       <!-- Drop any sibling already registered (explicitly or on a prior run) to avoid duplicates. -->
       <_DilSibling Remove="@(AdditionalFiles)" />
-      <AdditionalFiles Include="@(_DilSibling)" DilResource="true" />
+      <!-- Two registered files of one set with different metadata find the same siblings twice. -->
+      <AdditionalFiles Include="@(_DilSibling->Distinct())" DilResource="true" />
     </ItemGroup>
   </Target>
 

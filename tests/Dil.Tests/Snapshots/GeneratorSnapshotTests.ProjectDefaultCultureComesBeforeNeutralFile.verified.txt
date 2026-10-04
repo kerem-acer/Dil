@@ -1,8 +1,8 @@
 ﻿{
   Diagnostics: [
     {
-      Location: Strings.de.json: (0,0)-(0,0),
-      Message: Culture 'de' is missing a translation for key 'inbox',
+      Location: Strings.en.json: (0,0)-(0,0),
+      Message: Culture 'en' is missing a translation for key 'bye',
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {

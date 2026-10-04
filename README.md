@@ -45,10 +45,11 @@ That's it — the package wires the generator and the required MSBuild glue in a
 
 ## Use
 
-Register the **neutral file** of each set with `<DilResource Include="..." />`; its culture siblings
-on disk are pulled in automatically. **The base name becomes the class** and **the trailing segment
-is the culture**, resx-style: `Strings.json` is the neutral/default language of the `Strings` set,
+Register one file of each set with `<DilResource Include="..." />`; the rest of the set on disk is
+pulled in automatically. **The base name becomes the class** and **the trailing segment is the
+culture**, resx-style: `Strings.json` is the neutral (culture-free) file of the `Strings` set,
 `Strings.tr.json` is Turkish, `Strings.de.json` is German, `Strings.zh-Hans.json` is Simplified Chinese.
+The neutral file is optional (see [Sets without a neutral file](#sets-without-a-neutral-file)).
 
 ```xml
 <ItemGroup>
@@ -58,7 +59,8 @@ is the culture**, resx-style: `Strings.json` is the neutral/default language of 
 </ItemGroup>
 ```
 
-You can still list culture files individually if you prefer (e.g. to register a subset).
+A wildcard (`Resources/Strings.*.json`) or a single culture file (`Resources/Strings.en.json`) works
+just as well.
 
 ```jsonc
 // Resources/Strings.json  (neutral — defines the keys and is the fallback)
@@ -103,6 +105,42 @@ Any C# type works as a typed parameter — including your own (`{total:Money}` �
 via `IFormattable`/`ToString()`. The type must be resolvable in your `RootNamespace`, or fully-qualified
 (`{total:global::MyApp.Money}`). The bare `{total}` form is generic, so it accepts any type without that.
 
+## Sets without a neutral file
+
+A set doesn't need a neutral file. One file per language, each named after its language, is a set too:
+
+```jsonc
+// Resources/Strings.en.json
+{ "hello": "Hello" }
+
+// Resources/Strings.tr.json
+{ "hello": "Merhaba" }
+```
+
+Without a neutral file, the set's keys are all the keys found across its culture files, and `DIL001`
+reports any culture file that's missing one of them. If neither the current UI culture nor its parents
+have a file, a lookup returns the key itself (`"hello"`), unless the set has a default culture.
+
+## Default culture
+
+Name the culture to use when the current one has no value. With `en` as the default, `fr-FR` resolves
+as `fr-FR` → `fr` → `en` → key, instead of going straight to the key:
+
+```xml
+<PropertyGroup>
+  <DilDefaultCulture>en</DilDefaultCulture>                     <!-- project-wide -->
+</PropertyGroup>
+
+<ItemGroup>
+  <DilResource Include="Resources/Strings.en.json" DefaultCulture="en" /> <!-- per set, overrides the property -->
+</ItemGroup>
+```
+
+The default is per set, like everything else. If a set has both a neutral file and a default culture,
+the default culture comes first, like resx's `NeutralResourcesLanguage`. A regional default falls back
+to its parent (`en-US` → `en`). The default culture's file also supplies the `<summary>` text of the
+generated members; otherwise it comes from the neutral file.
+
 ## Class accessibility
 
 Generated classes are **`internal` by default** — localization tables are usually an implementation
@@ -121,9 +159,10 @@ resource with `Accessibility` metadata on the `<DilResource>` item:
 </ItemGroup>
 ```
 
-A set spans several files (neutral + cultures) but produces one class, so the **neutral (cultureless)
-file decides** the set's accessibility; `Accessibility` on a culture file is ignored. The members
-themselves stay `public static` — their visibility is already capped by the class.
+A set spans several files (neutral + cultures) but produces one class, so one file decides the set's
+accessibility: the **neutral (cultureless) file**, or without one, the default culture's file. Files
+pulled in automatically take the `Accessibility` and `DefaultCulture` of the file you registered. The
+members themselves stay `public static` — their visibility is already capped by the class.
 
 ## How file selection works
 
@@ -132,10 +171,11 @@ cannot read arbitrary files, only those passed to it as `AdditionalFiles` (which
 becomes under the hood). Your `appsettings.json`, `package.json`, and every other JSON file are
 invisible to it. There is no folder scan and no magic filename.
 
-As a convenience, registering a file also pulls in its on-disk **culture siblings** — the build
-adds every `<dir>/<stem>.<culture>.json` next to each registered file. So registering `Strings.json`
-also picks up `Strings.tr.json`, `Strings.de.json`, and so on; you don't list each culture. (This is
-an MSBuild-side expansion, so the files must exist on disk at build time.)
+As a convenience, registering a file also pulls in the rest of its set on disk — the build drops the
+culture from the registered name and adds `<dir>/<stem>.json` and every `<dir>/<stem>.<culture>.json`
+next to it. So registering `Strings.json` or `Strings.en.json` also picks up `Strings.tr.json`,
+`Strings.de.json`, and so on; you don't list each culture. (This is an MSBuild-side expansion, so the
+files must exist on disk at build time.)
 
 ## Setting the culture
 
@@ -172,10 +212,9 @@ are for the generated typed members; a named template passed through the indexer
 
 | ID       | Severity | Meaning |
 |----------|----------|---------|
-| `DIL001` | Warning  | A culture file is missing a key defined in its set's neutral file (untranslated string). |
-| `DIL002` | Warning  | A resource set has culture files but no neutral file to define its keys. |
+| `DIL001` | Warning  | A culture file is missing one of its set's keys (untranslated string). The keys come from the neutral file, or without one, from all the culture files. |
 
-Treat them as errors if you want a hard guarantee that every string is translated:
+Treat it as an error if you want a hard guarantee that every string is translated:
 
 ```xml
 <PropertyGroup>
@@ -185,7 +224,7 @@ Treat them as errors if you want a hard guarantee that every string is translate
 
 ## Notes
 
-- Missing keys fall back: `tr-TR` → `tr` → neutral → the key itself. Fallback is per set.
+- Missing keys fall back: `tr-TR` → `tr` → default culture → neutral → the key itself. Fallback is per set.
 - Only string values are used; numbers, objects, and arrays are ignored. Comments and trailing commas are tolerated, so `.jsonc` works.
 - **Live reload** is on by default — editing a resource file is picked up at runtime via a `FileSystemWatcher`. Turn it off with `Dil.Loc.LiveReload = false` (e.g. in production).
 - `Dil.Loc.Configure(baseDirectory)` overrides where files are loaded from / forces a reload.
@@ -206,7 +245,7 @@ dotnet pack Dil.slnx -c Release -o artifacts    # produce both NuGet packages
 
 ```
 src/Dil/                       runtime (netstandard2.0/net8.0/net10.0/net11.0) + build/ props & targets
-src/Dil.Generator/             incremental source generator + DIL001/DIL002 diagnostics
+src/Dil.Generator/             incremental source generator + DIL001 diagnostics
 src/Dil.Extensions.Localization/  optional IStringLocalizer / DI adapter
 sample/Dil.Sample/             runnable console demo
 sample/Dil.Localization.Sample/  IStringLocalizer + DI demo
