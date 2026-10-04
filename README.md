@@ -31,7 +31,7 @@ and no cross-platform CLI regeneration. Dil keeps the *one good part* of resx �
 - **Generic, formattable params** — `{placeholder}` values are generic (`Greeting.Render<T>(T name)`), so `int`/`string`/etc. flow without `object?`, and `IFormattable` values render in the current culture.
 - **Live reload** — edits to the JSON files are picked up at runtime (on by default; toggle with `Dil.Loc.LiveReload`).
 - **Translations in IntelliSense** — every member's doc comment lists all its translations.
-- **Lean runtime** — multi-targets `netstandard2.0`, `net8.0`, and `net10.0`; parses JSON with `System.Text.Json` (in-box on modern .NET) and assembles formatted strings with [Glot](https://github.com/kerem-acer/Glot)'s pooled `TextBuilder`.
+- **Lean runtime** — multi-targets `netstandard2.0`, `net8.0`, `net10.0`, and `net11.0`; parses JSON with `System.Text.Json` (in-box on modern .NET) and assembles formatted strings with [Glot](https://github.com/kerem-acer/Glot)'s pooled `TextBuilder`.
 - **Ambient culture** — works exactly like resx: set `CultureInfo.CurrentUICulture`, read `Strings.X`.
 - **Compile-time safety** — missing translations are reported as build warnings (`DIL001`).
 
@@ -193,6 +193,8 @@ Treat them as errors if you want a hard guarantee that every string is translate
 
 ## Build from source
 
+Needs the .NET 11 SDK (pinned in `global.json`); the tests also run on .NET 10, so have its runtime too.
+
 ```
 dotnet build                                    # build everything
 dotnet run --project sample/Dil.Sample          # run the demo
@@ -203,7 +205,7 @@ dotnet pack Dil.slnx -c Release -o artifacts    # produce both NuGet packages
 ## Project layout
 
 ```
-src/Dil/                       runtime (netstandard2.0/net8.0/net10.0) + build/ props & targets
+src/Dil/                       runtime (netstandard2.0/net8.0/net10.0/net11.0) + build/ props & targets
 src/Dil.Generator/             incremental source generator + DIL001/DIL002 diagnostics
 src/Dil.Extensions.Localization/  optional IStringLocalizer / DI adapter
 sample/Dil.Sample/             runnable console demo

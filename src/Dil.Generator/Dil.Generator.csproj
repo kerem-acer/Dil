@@ -14,11 +14,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Deliberately NOT the latest: this is the minimum compiler the generator runs on. 4.8 is what
+         the .NET 8 SDK / VS 17.8 ship; a newer reference makes older compilers skip the generator. -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
     <!-- Compile-time only: System.Text.Json ships in the shared framework of the Roslyn
          compiler host (csc runs on .NET Core 3.0+), so it resolves at generation time
          without bundling. PrivateAssets="all" keeps it out of the analyzer package. -->
-    <PackageReference Include="System.Text.Json" Version="10.0.9" PrivateAssets="all" />
+    <PackageReference Include="System.Text.Json" Version="10.0.12" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>
