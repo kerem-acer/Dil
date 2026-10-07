@@ -94,6 +94,47 @@ public sealed class GeneratorSnapshotTests
     }
 
     [Test]
+    public Task VerbatimMemberNamesKeepIdentifierKeys()
+    {
+        // Identifier keys keep their names, and claim them before the rest are PascalCased: hello-world
+        // becomes HelloWorld2, since the HelloWorld key owns that name. Keys that aren't identifiers (2fa,
+        // the keyword class) are PascalCased as usual; a key named after the class or a helper is numbered.
+        var driver = GeneratorHarness.RunDriverWith("MyApp",
+            new Dictionary<string, string> { ["DilMemberNames"] = "Verbatim" },
+            new ResourceInput("Strings.json",
+
+                                     """
+                {
+                  "Common_Cancel": "Cancel",
+                  "hello": "Hello",
+                  "hello-world": "Hello, world (dashed)",
+                  "HelloWorld": "Hello, world",
+                  "2fa": "Two-factor",
+                  "class": "Class",
+                  "Strings": "Strings",
+                  "__Get": "Get",
+                  "Login2fa_EnterCode_Email": "Enter the code sent to {email}"
+                }
+                """));
+
+        return Verify(driver);
+    }
+
+    [Test]
+    public Task MemberNamesMetadataWinsOverDilMemberNames()
+    {
+        // The project keeps keys verbatim, but Strings opts back to PascalCase on its item (siblings copy
+        // it, so both files carry it); Errors has no metadata, so DilMemberNames applies.
+        var driver = GeneratorHarness.RunDriverWith("MyApp",
+            new Dictionary<string, string> { ["DilMemberNames"] = "Verbatim" },
+            new ResourceInput("Strings.json", """{ "Common_Cancel": "Cancel" }""", MemberNames: "PascalCase"),
+            new ResourceInput("Strings.tr.json", """{ "Common_Cancel": "İptal" }""", MemberNames: "PascalCase"),
+            new ResourceInput("Errors.json", """{ "Login_InvalidCredentials": "Invalid credentials" }"""));
+
+        return Verify(driver);
+    }
+
+    [Test]
     public Task DefaultNamespaceWhenRootNamespaceMissing()
     {
         var driver = GeneratorHarness.RunDriver("", new ResourceInput("Strings.json", Neutral));

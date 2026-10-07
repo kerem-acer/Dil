@@ -162,8 +162,8 @@ resource with `Accessibility` metadata on the `<DilResource>` item:
 
 A set spans several files (neutral + cultures) but produces one class, so one file decides the set's
 accessibility: the **neutral (cultureless) file**, or without one, the default culture's file. Files
-pulled in automatically take the `Accessibility`, `DefaultCulture` and `Namespace` of the file you
-registered. The members themselves stay `public static` — their visibility is already capped by the class.
+pulled in automatically take the `Accessibility`, `DefaultCulture`, `Namespace` and `MemberNames` of the
+file you registered. The members themselves stay `public static` — their visibility is already capped by the class.
 
 ## Namespace
 
@@ -199,6 +199,43 @@ As with accessibility, the file that owns a set decides its namespace.
 The namespace only moves the class. A set is still known by its assembly and class name, so
 `IStringLocalizer<T>` finds it wherever it lands. It also means that two sets with the same file name in
 different folders of one project are still one set, so give them different names.
+
+## Member names
+
+Each key becomes a PascalCase member: `hello` → `Hello`, `save_changes` → `SaveChanges`,
+`user.first-name` → `UserFirstName`, `1st` → `_1st`. When two keys come out the same, the later one gets
+a number (`FooBar`, `FooBar2`).
+
+resx does it differently: its designer uses a key as the member name whenever the key is a valid C#
+identifier. To keep those names when a resx file moves to Dil, set the member names to `Verbatim`,
+project-wide with the `DilMemberNames` property, or per set with `MemberNames` metadata:
+
+```xml
+<PropertyGroup>
+  <DilMemberNames>Verbatim</DilMemberNames>                    <!-- project-wide; default: PascalCase -->
+</PropertyGroup>
+
+<ItemGroup>
+  <DilResource Include="Localization/Resources.json" MemberNames="Verbatim" /> <!-- per set -->
+</ItemGroup>
+```
+
+With `Verbatim`, a key that's a valid C# identifier is the member name as written: `Common_Cancel` stays
+`Common_Cancel`, and `hello` stays `hello`. Besides call sites, this keeps attributes that name a resource
+in a string working, since they find it by its member name at runtime:
+
+```csharp
+[Required(ErrorMessageResourceName = "Validation_ContactRequired", ErrorMessageResourceType = typeof(Resources))]
+```
+
+A key that isn't an identifier (`hello-world`, `2fa`, or a keyword like `class`) is PascalCased as
+usual, so the generated class always compiles. Identifier keys pick their names first, so a
+PascalCased key never takes one: `hello-world` becomes `HelloWorld2` if there's also a `HelloWorld` key.
+A template struct follows its member (`Login2fa_EnterCode_EmailTemplate`).
+
+The first one that's set wins: `MemberNames` on the item, then `DilMemberNames`, then PascalCase. As with
+accessibility, the file that owns a set decides. Only the member's name changes: the set is still looked
+up by the JSON key, so `IStringLocalizer` and the files themselves are unaffected.
 
 ## How file selection works
 

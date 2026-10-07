@@ -10,11 +10,11 @@ namespace Dil.Tests;
 
 /// <summary>
 /// A resource file fed to the generator: a path, its JSON, whether it is marked DilResource, and
-/// optional per-file Accessibility, DefaultCulture and Namespace metadata values (null = unset).
+/// optional per-file Accessibility, DefaultCulture, Namespace and MemberNames metadata values (null = unset).
 /// </summary>
 readonly record struct ResourceInput(
     string Path, string Json, bool DilResource = true, string? Accessibility = null, string? DefaultCulture = null,
-    string? Namespace = null);
+    string? Namespace = null, string? MemberNames = null);
 
 /// <summary>Runs <see cref="LocalizationGenerator"/> in isolation via <see cref="CSharpGeneratorDriver"/>.</summary>
 static class GeneratorHarness
@@ -179,6 +179,11 @@ static class GeneratorHarness
                 if (meta.Namespace is not null)
                 {
                     map["build_metadata.AdditionalFiles.Namespace"] = meta.Namespace;
+                }
+
+                if (meta.MemberNames is not null)
+                {
+                    map["build_metadata.AdditionalFiles.MemberNames"] = meta.MemberNames;
                 }
             }
 

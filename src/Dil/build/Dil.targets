@@ -36,7 +36,8 @@
     because a wildcard only globs inside a target (at static evaluation it stays literal). It hooks in
     before AssignTargetPaths (so the copy step below sees the siblings) and before the analyzer config
     / compile (so the generator sees them). Siblings copy the registered item's Accessibility,
-    DefaultCulture and Namespace, so the set's settings don't depend on which of its files was registered.
+    DefaultCulture, Namespace and MemberNames, so the set's settings don't depend on which of its files
+    was registered.
   -->
   <Target Name="_DilDiscoverSiblings"
           BeforeTargets="AssignTargetPaths;GenerateMSBuildEditorConfigFile;CoreCompile"
@@ -48,7 +49,8 @@
       <_DilSibling Include="%(_DilSetFile.RelativeDir)%(_DilSetFile.Filename)%(_DilSetFile.Extension);%(_DilSetFile.RelativeDir)%(_DilSetFile.Filename).*.json"
                    Accessibility="%(_DilSetFile.Accessibility)"
                    DefaultCulture="%(_DilSetFile.DefaultCulture)"
-                   Namespace="%(_DilSetFile.Namespace)" />
+                   Namespace="%(_DilSetFile.Namespace)"
+                   MemberNames="%(_DilSetFile.MemberNames)" />
       <!-- The neutral name is a literal, not a glob, so it is kept even when no such file exists. -->
       <_DilSibling Remove="@(_DilSibling)" Condition="!Exists('%(FullPath)')" />
       <!-- Drop any sibling already registered (explicitly or on a prior run) to avoid duplicates. -->
