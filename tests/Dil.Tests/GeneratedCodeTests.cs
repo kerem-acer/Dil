@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using Microsoft.CodeAnalysis;
 
@@ -143,6 +144,57 @@ public sealed class GeneratedCodeTests
         var greeting = assembly.GetType("MyApp.Localization.Resources.Strings+GreetingTemplate", throwOnError: true)!;
         var render = greeting.GetMethod("Render")!.MakeGenericMethod(typeof(string));
         await Assert.That(render.Invoke(Activator.CreateInstance(greeting), ["Ada"])).IsEqualTo("Hi, Ada!");
+    }
+
+    [Test]
+    public async Task VerbatimMembersResolveByTheirKeyName()
+    {
+        // The reason for verbatim names: attributes that find a resource by its member name in a string.
+        var dir = Path.Combine(Path.GetTempPath(), "dil-tests", Guid.NewGuid().ToString("N"));
+        var files = Path.Combine(dir, "Dil", GeneratorHarness.DefaultAssemblyName); // the build copies them here
+        Directory.CreateDirectory(files);
+        File.WriteAllText(Path.Combine(files, "Resources.json"),
+            """{ "Validation_ContactRequired": "{0} is required", "Passkeys_RemoveConfirm": "Remove passkey" }""");
+        Loc.LiveReload = false;
+        Loc.Configure(dir);
+
+        // "a\u00ADb" is a valid identifier, but C# drops the soft hyphen from it, so it would be a second
+        // member named ab: it must be PascalCased (AB) instead. Public, so a missing doc comment would warn.
+        var driver = GeneratorHarness.RunDriverWith("MyApp",
+            new Dictionary<string, string> { ["DilAccessibility"] = "public", ["DilMemberNames"] = "Verbatim" },
+            new ResourceInput("Resources.json",
+                """
+                {
+                  "Validation_ContactRequired": "{0} is required",
+                  "Passkeys_RemoveConfirm": "Remove passkey",
+                  "ab": "ab",
+                  "a\u00ADb": "a-b",
+                  "var": "contextual keyword",
+                  "_": "underscore"
+                }
+                """));
+        var compilation = GeneratorHarness.CompileGenerated(driver);
+
+        var diagnostics = compilation.GetDiagnostics()
+            .Where(d => d.Severity >= DiagnosticSeverity.Warning)
+            .Select(d => d.ToString())
+            .ToList();
+        await Assert.That(diagnostics).IsEmpty();
+
+        using var pe = new MemoryStream();
+        await Assert.That(compilation.Emit(pe).Success).IsTrue();
+        var type = System.Reflection.Assembly.Load(pe.ToArray()).GetType("MyApp.Resources", throwOnError: true)!;
+        await Assert.That(type.GetProperty("AB")).IsNotNull();
+
+        var required = new RequiredAttribute
+        {
+            ErrorMessageResourceName = "Validation_ContactRequired",
+            ErrorMessageResourceType = type,
+        };
+        await Assert.That(required.FormatErrorMessage("Contact")).IsEqualTo("Contact is required");
+
+        var display = new DisplayAttribute { Name = "Passkeys_RemoveConfirm", ResourceType = type };
+        await Assert.That(display.GetName()).IsEqualTo("Remove passkey");
     }
 
     [Test]

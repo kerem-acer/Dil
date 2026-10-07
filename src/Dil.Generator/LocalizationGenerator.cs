@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 
@@ -19,6 +20,7 @@ namespace Dil.Generator;
 /// is the culture: <c>Strings.json</c> is the neutral set <c>Strings</c>, <c>Strings.tr.json</c> is Turkish.
 /// A set doesn't need a neutral file; without one, its culture files together define its keys.
 /// The class goes in <c>RootNamespace</c>, unless the set names another namespace or derives one from its folder.
+/// Each key becomes a PascalCase member, unless the set keeps identifier keys verbatim, like resx.
 /// </summary>
 [Generator]
 public sealed class LocalizationGenerator : IIncrementalGenerator
@@ -96,7 +98,21 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         TryGet(opts, "build_metadata.AdditionalFiles.DefaultCulture", out var defaultCulture);
 
         return new ResInfo(file, set, culture, relPath, ResolveAccessibility(opts, provider.GlobalOptions),
-            defaultCulture?.Trim() ?? string.Empty, ResolveNamespace(opts, provider.GlobalOptions, relPath));
+            defaultCulture?.Trim() ?? string.Empty, ResolveNamespace(opts, provider.GlobalOptions, relPath),
+            ResolveVerbatimMembers(opts, provider.GlobalOptions));
+    }
+
+    // Per-resource member naming: per-file MemberNames metadata wins, else the project-wide DilMemberNames,
+    // else PascalCase. Only "Verbatim" keeps keys as member names, so any other value means PascalCase.
+    static bool ResolveVerbatimMembers(AnalyzerConfigOptions fileOptions, AnalyzerConfigOptions globalOptions)
+    {
+        if (!TryGet(fileOptions, "build_metadata.AdditionalFiles.MemberNames", out var value) ||
+            string.IsNullOrWhiteSpace(value))
+        {
+            TryGet(globalOptions, "build_property.DilMemberNames", out value);
+        }
+
+        return string.Equals(value?.Trim(), "Verbatim", StringComparison.OrdinalIgnoreCase);
     }
 
     // Per-resource namespace for the generated class: per-file Namespace metadata wins, else the
@@ -187,7 +203,7 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         var text = info.File.GetText(ct)?.ToString() ?? string.Empty;
         var entries = FlatJson.Parse(text);
         return new ResFile(info.Set, info.Culture, info.RelPath, info.File.Path, info.Accessibility, info.DefaultCulture,
-            info.Namespace, new EquatableArray<KeyValuePair<string, string>>(entries.ToArray()));
+            info.Namespace, info.VerbatimMembers, new EquatableArray<KeyValuePair<string, string>>(entries.ToArray()));
     }
 
     static void Generate(
@@ -309,8 +325,8 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
             }
         }
 
-        // One class per set, but a set spans several files; one of them owns it and its accessibility and
-        // namespace decide: the neutral file, else the default culture's file, else the first file.
+        // One class per set, but a set spans several files; one of them owns it and decides its accessibility,
+        // namespace and member names: the neutral file, else the default culture's file, else the first file.
         var owner = files.FirstOrDefault(f => f.Culture.Length == 0)
                     ?? defaultChain
                         .Select(c => files.FirstOrDefault(f => string.Equals(f.Culture, c, StringComparison.OrdinalIgnoreCase)))
@@ -323,13 +339,13 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
             .ToList();
         spc.AddSource("Dil." + className + ".g.cs",
             SourceText.From(
-                Emit(owner.Namespace, className, Scoped(assembly, className), owner.Accessibility, defaultCulture, keys,
-                    manifest, translations),
+                Emit(owner.Namespace, className, Scoped(assembly, className), owner.Accessibility, defaultCulture,
+                    owner.VerbatimMembers, keys, manifest, translations),
                 Encoding.UTF8));
     }
 
     static string Emit(
-        string ns, string className, string set, string accessibility, string defaultCulture,
+        string ns, string className, string set, string accessibility, string defaultCulture, bool verbatimMembers,
         List<KeyValuePair<string, string>> keys,
         List<(string Culture, string RelPath)> manifest,
         Dictionary<string, List<(string Culture, string Value)>> translations)
@@ -361,13 +377,29 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         sb.AppendLine("        }");
         sb.AppendLine();
 
-        // Seed with the class name so a key that PascalCases to it gets disambiguated (a member with
-        // the same name as its type is CS0542).
-        var used = new HashSet<string>(StringComparer.Ordinal) { className };
+        // Seed with the class name so a key named after it gets disambiguated (a member with the same name
+        // as its type is CS0542), and with the helpers below, which only a verbatim key could clash with.
+        var used = new HashSet<string>(StringComparer.Ordinal) { className, "__Get", "__Format" };
+
+        // A verbatim set keeps every key that's already an identifier as its member name. Those claim their
+        // names before the other keys are PascalCased, so a PascalCased key never renames one.
+        var verbatim = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (verbatimMembers)
+        {
+            foreach (var kv in keys.Where(kv => IsIdentifier(kv.Key)))
+            {
+                verbatim[kv.Key] = Unique(used, kv.Key);
+            }
+        }
+
         var members = new List<(string Key, string Value, string Member, List<(string Raw, string Ident, string? Type)> Placeholders)>();
         foreach (var kv in keys)
         {
-            var member = Unique(used, ToPascal(kv.Key));
+            if (!verbatim.TryGetValue(kv.Key, out var member))
+            {
+                member = Unique(used, ToPascal(kv.Key));
+            }
+
             if (member.Length > 0)
             {
                 members.Add((kv.Key, kv.Value, member, ExtractPlaceholders(kv.Value)));
@@ -382,7 +414,7 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
 
         // The structs reach Loc through these, not directly: calling a static method of this class runs its
         // static constructor (which registers the set), so even a default(...) struct resolves its key.
-        // The "__" prefix can't come out of ToPascal, so they never clash with a key's member.
+        // Their names are claimed in `used` up front, so they never clash with a key's member.
         var qualifiedClass = "global::" + ns + "." + className;
         if (structNames.Count > 0)
         {
@@ -566,6 +598,14 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         return s;
     }
 
+    // A key that compiles as a member name exactly as written: identifier characters only, no reserved
+    // keyword (those get PascalCased, not @-escaped), and no formatting characters, which C# drops from an
+    // identifier (so the member's name wouldn't be the key, and two keys could become one member).
+    static bool IsIdentifier(string key) =>
+        SyntaxFacts.IsValidIdentifier(key) &&
+        SyntaxFacts.GetKeywordKind(key) == SyntaxKind.None &&
+        key.All(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.Format);
+
     // "<assembly>/<name>": the set's Loc key (name = class), or its file's path under the output's Dil folder.
     static string Scoped(string assembly, string name) => assembly.Length == 0 ? name : assembly + "/" + name;
 
@@ -677,7 +717,7 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
 
     readonly record struct ResInfo(
         AdditionalText File, string Set, string Culture, string RelPath, string Accessibility, string DefaultCulture,
-        string Namespace);
+        string Namespace, bool VerbatimMembers);
 
     sealed record ResFile(
         string Set,
@@ -687,6 +727,7 @@ public sealed class LocalizationGenerator : IIncrementalGenerator
         string Accessibility,
         string DefaultCulture,
         string Namespace,
+        bool VerbatimMembers,
         EquatableArray<KeyValuePair<string, string>> Entries);
 
     static readonly HashSet<string> CsharpKeywords =
